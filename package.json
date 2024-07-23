@@ -1,0 +1,30 @@
+{
+	"name": "bulk-npm-publish-2",
+	"version": "1.0.0",
+	"main": "index.js",
+	"type": "module",
+	"scripts": {
+		"check": "biome check .",
+		"check:fix": "biome check --fix .",
+		"build": "tsc --project ./tsconfig.prod.json",
+		"typecheck": "tsc --noEmit",
+		"start": "node --loader ts-node/esm src/index.ts",
+		"test": "node --loader ts-node/esm --test ./src/*.test.ts"
+	},
+	"keywords": [],
+	"author": "Raz Luvaton",
+	"license": "ISC",
+	"description": "",
+	"devDependencies": {
+		"@biomejs/biome": "1.8.3",
+		"@npm/types": "^1.0.2",
+		"@types/node": "^20.14.11",
+		"@types/semver": "^7.5.8",
+		"ts-node": "^10.9.2",
+		"typescript": "^5.5.4"
+	},
+	"dependencies": {
+		"fastq": "^1.17.1",
+		"semver": "^7.6.3"
+	}
+}
