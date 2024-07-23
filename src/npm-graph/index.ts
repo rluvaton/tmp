@@ -15,19 +15,6 @@ import {
 	hasNeededPackageVersion,
 } from "./needed-packages.js";
 
-type Task = {
-	id: number;
-};
-
-const q: queueAsPromised<Task> = q
-	.push({ id: 42 })
-	.catch((err) => console.error(err));
-
-async function asyncWorker(arg: Task): Promise<void> {
-	// No need for a try-catch block, fastq handles errors automatically
-	console.log(arg.id);
-}
-
 enum AddPackageResult {
 	Added = 0,
 	AlreadyExist = 1,
@@ -96,7 +83,7 @@ export class PackagesGraph {
 			// Don't add to pool, so we won't take the pool by duplicate requests
 			await fetchModuleInfoToCache(packageName);
 		} else if (!isModuleInCache(packageName)) {
-			await this.fetchDataPool.add(() => fetchModuleInfoToCache(packageName));
+			await this.fetchDataPool.push(packageName);
 		}
 
 		const version = getSpecificPackageVersion(
@@ -113,7 +100,6 @@ export class PackagesGraph {
 		}
 
 		// Already processed
-
 		if (hasNeededPackageVersion(packageName, version.version)) {
 			// console.log(`${prefix} already exists`);
 			return;

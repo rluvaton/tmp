@@ -36,11 +36,14 @@ export function isModuleFetchingInProgress(name: string): boolean {
 	return cache.has(name) || fetchCache.has(name);
 }
 
-export async function fetchModuleInfoToCache(packageName: string): Promise<{}> {
+export async function fetchModuleInfoToCache(
+	packageName: string,
+): Promise<npm.Packument> {
 	const prefix = `[${packageName}]`;
 
 	if (cache.has(packageName)) {
 		console.log(`${prefix} Already fetched`);
+		// biome-ignore lint/style/noNonNullAssertion:
 		return cache.get(packageName)!.info;
 	}
 
@@ -50,6 +53,7 @@ export async function fetchModuleInfoToCache(packageName: string): Promise<{}> {
 		);
 		await fetchCache.get(packageName);
 
+		// biome-ignore lint/style/noNonNullAssertion:
 		return cache.get(packageName)!.info;
 	}
 

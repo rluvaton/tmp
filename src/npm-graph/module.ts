@@ -221,7 +221,7 @@ function formatNpmDependenciesVersion(
 
 		return [
 			// the org name and package name
-			"@" + splitted[1],
+			`@${splitted[1]}`,
 			splitted[2],
 		];
 	}
