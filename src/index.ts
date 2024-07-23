@@ -13,7 +13,7 @@ const cache = new PackagesGraph({
 	},
 });
 
-async function run() {
+async function addPackages() {
 	// await cache.addNewPackage('react');
 	// await cache.addNewPackage('lodash');
 	// tap:^14.2.4
@@ -22,12 +22,26 @@ async function run() {
 	console.timeEnd("add tap@^14.2.4");
 }
 
+async function run() {
+	try {
+		await addPackages();
+	} catch (e) {
+		console.error("Failed to add packages", e);
+
+		// TODO - save cache to disk so next time can continue from there
+
+		throw e;
+	}
+}
+
 run()
 	.then(() => {
 		console.log("finished");
 	})
 	.catch((e) => {
+
 		console.error("Failed", e);
+		process.exit(1);
 	})
 	.finally(() => {
 		const neededPackages = getAllNeededPackages();

@@ -14,6 +14,7 @@ import {
 	addNewNeededPackage,
 	hasNeededPackageVersion,
 } from "./needed-packages.js";
+import {PromisePool} from "../lib/promise-pool.js";
 
 enum AddPackageResult {
 	Added = 0,
@@ -23,7 +24,7 @@ enum AddPackageResult {
 }
 
 export class PackagesGraph {
-	private fetchDataPool: queueAsPromised<unknown>;
+	private fetchDataPool: PromisePool<unknown>;
 	private include: DependenciesType;
 	private addLatest: boolean;
 
@@ -36,7 +37,7 @@ export class PackagesGraph {
 		include: DependenciesType;
 		addLatest: boolean;
 	}) {
-		this.fetchDataPool = fastq.promise(fetchModuleInfoToCache, concurrency);
+		this.fetchDataPool = new PromisePool(concurrency);
 		this.include = include;
 		this.addLatest = addLatest;
 	}
@@ -83,7 +84,7 @@ export class PackagesGraph {
 			// Don't add to pool, so we won't take the pool by duplicate requests
 			await fetchModuleInfoToCache(packageName);
 		} else if (!isModuleInCache(packageName)) {
-			await this.fetchDataPool.push(packageName);
+			await this.fetchDataPool.add(() => fetchModuleInfoToCache(packageName));
 		}
 
 		const version = getSpecificPackageVersion(
