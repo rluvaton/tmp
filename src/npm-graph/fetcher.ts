@@ -1,28 +1,28 @@
 import type * as npm from "@npm/types";
 
 export async function fetchPackage(
-	packageName: string,
+  packageName: string,
 ): Promise<npm.Packument> {
-	// Package info is what being returned from
-	// https://registry.npmjs.org/@babel/generator/
+  // Package info is what being returned from
+  // https://registry.npmjs.org/@babel/generator/
 
-	// This was faster from using undici request somehow
+  // This was faster from using undici request somehow
 
-	// TODO - on timeout, retry
-	const response = await fetch(`https://registry.npmjs.org/${packageName}`, {
-		method: "GET",
-	});
+  // TODO - on timeout, retry
+  const response = await fetch(`https://registry.npmjs.org/${packageName}`, {
+    method: "GET",
+  });
 
-	if (response.status >= 400) {
-		const responseBody = await response.text();
+  if (response.status >= 400) {
+    const responseBody = await response.text();
 
-		console.error("Failed to fetch package", packageName, responseBody);
-		throw new Error(`Failed to fetch ${packageName}`);
-	}
+    console.error("Failed to fetch package", packageName, responseBody);
+    throw new Error(`Failed to fetch ${packageName}`);
+  }
 
-	return (await response.json()) as npm.Packument;
+  return (await response.json()) as npm.Packument;
 }
 
 export async function downloadUrl(url: string, isLatest: boolean) {
-	// TODO
+  // TODO
 }

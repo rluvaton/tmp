@@ -10,28 +10,28 @@ import { InMemoryWritable } from "../streams-helper.js";
  * @param {string} filePathGlob relative file path to extract from the tar root content
  */
 export async function getFileContentFromTar(
-	tarFile: string,
-	filePathGlob: string,
+  tarFile: string,
+  filePathGlob: string,
 ): Promise<Promise<Record<string, Buffer>>> {
-	const filesBuffers: Record<string, Buffer | InMemoryWritable> = {};
+  const filesBuffers: Record<string, Buffer | InMemoryWritable> = {};
 
-	await tar.extract({
-		file: tarFile,
-		filter: (path) => minimatch(path, filePathGlob),
-		transform(entry) {
-			filesBuffers[entry.path] = new InMemoryWritable();
+  await tar.extract({
+    file: tarFile,
+    filter: (path) => minimatch(path, filePathGlob),
+    transform(entry) {
+      filesBuffers[entry.path] = new InMemoryWritable();
 
-			return filesBuffers[entry.path];
-		},
-	});
+      return filesBuffers[entry.path];
+    },
+  });
 
-	for (const key of Object.keys(filesBuffers)) {
-		filesBuffers[key] = Buffer.concat(
-			(filesBuffers[key] as InMemoryWritable).internalData,
-		);
-	}
+  for (const key of Object.keys(filesBuffers)) {
+    filesBuffers[key] = Buffer.concat(
+      (filesBuffers[key] as InMemoryWritable).internalData,
+    );
+  }
 
-	return filesBuffers as Record<string, Buffer>;
+  return filesBuffers as Record<string, Buffer>;
 }
 
 /**
@@ -40,16 +40,16 @@ export async function getFileContentFromTar(
  * @return {Promise<string[]>}
  */
 export async function getListOfFilesFromTar(
-	tarFile: string,
+  tarFile: string,
 ): Promise<string[]> {
-	const fileList: string[] = [];
+  const fileList: string[] = [];
 
-	await finished(
-		fs
-			.createReadStream(tarFile)
-			.pipe(tar.t())
-			.on("entry", (entry) => fileList.push(entry.path)),
-	);
+  await finished(
+    fs
+      .createReadStream(tarFile)
+      .pipe(tar.t())
+      .on("entry", (entry) => fileList.push(entry.path)),
+  );
 
-	return fileList;
+  return fileList;
 }

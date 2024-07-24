@@ -6,25 +6,25 @@ import zlib from "node:zlib";
 import tar from "tar-stream";
 
 export async function createTmpTgzFile(
-	content: Record<string, string>,
+  content: Record<string, string>,
 ): Promise<string> {
-	const tmpFilePath = path.join(os.tmpdir(), `${crypto.randomUUID()}.tgz`);
+  const tmpFilePath = path.join(os.tmpdir(), `${crypto.randomUUID()}.tgz`);
 
-	const pack = tar.pack(); // pack is a stream
-	const gzip = zlib.createGzip();
-	const outputFile = fs.createWriteStream(tmpFilePath);
+  const pack = tar.pack(); // pack is a stream
+  const gzip = zlib.createGzip();
+  const outputFile = fs.createWriteStream(tmpFilePath);
 
-	for (const [pathInFile, fileContent] of Object.entries(content)) {
-		await new Promise<void>((resolve, reject) => {
-			pack.entry({ name: pathInFile }, fileContent, (err) =>
-				err ? reject(err) : resolve(),
-			);
-		});
-	}
+  for (const [pathInFile, fileContent] of Object.entries(content)) {
+    await new Promise<void>((resolve, reject) => {
+      pack.entry({ name: pathInFile }, fileContent, (err) =>
+        err ? reject(err) : resolve(),
+      );
+    });
+  }
 
-	pack.finalize();
+  pack.finalize();
 
-	await pipeline(pack, gzip, outputFile);
+  await pipeline(pack, gzip, outputFile);
 
-	return tmpFilePath;
+  return tmpFilePath;
 }

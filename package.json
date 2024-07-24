@@ -1,42 +1,42 @@
 {
-	"name": "bulk-npm-publish-2",
-	"version": "1.0.0",
-	"main": "index.js",
-	"type": "module",
-	"scripts": {
-		"check": "biome check .",
-		"check:fix": "biome check --fix .",
-		"build": "tsc --project ./tsconfig.prod.json",
-		"typecheck": "tsc --noEmit",
-		"start": "node --import ./load-ts.js src/index.ts",
-		"test": "node --import ./load-ts.js run-tests.ts"
-	},
-	"keywords": [],
-	"author": "Raz Luvaton",
-	"license": "ISC",
-	"description": "",
-	"devDependencies": {
-		"@biomejs/biome": "1.8.3",
-		"@npm/types": "^1.0.2",
-		"@types/fs-extra": "^11.0.4",
-		"@types/node": "^20.14.11",
-		"@types/semver": "^7.5.8",
-		"@types/tar-stream": "^3.1.3",
-		"@verdaccio/types": "^10.8.0",
-		"fs-extra": "^11.2.0",
-		"glob": "^11.0.0",
-		"ts-node": "^10.9.2",
-		"typescript": "^5.5.4",
-		"verdaccio": "^5.31.1"
-	},
-	"dependencies": {
-		"execa": "^9.3.0",
-		"fastq": "^1.17.1",
-		"minimatch": "^10.0.1",
-		"semver": "^7.6.3",
-		"tar": "^7.4.1",
-		"tar-stream": "^3.1.7",
-		"tgz-modify": "^1.0.4",
-		"undici": "^6.19.4"
-	}
+  "name": "bulk-npm-publish-2",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "check": "biome check .",
+    "check:fix": "biome check --fix .",
+    "build": "tsc --project ./tsconfig.prod.json",
+    "typecheck": "tsc --noEmit",
+    "start": "node --import ./load-ts.js src/index.ts",
+    "test": "node --import ./load-ts.js run-tests.ts"
+  },
+  "keywords": [],
+  "author": "Raz Luvaton",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@biomejs/biome": "1.8.3",
+    "@npm/types": "^1.0.2",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.14.11",
+    "@types/semver": "^7.5.8",
+    "@types/tar-stream": "^3.1.3",
+    "@verdaccio/types": "^10.8.0",
+    "fs-extra": "^11.2.0",
+    "glob": "^11.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4",
+    "verdaccio": "^5.31.1"
+  },
+  "dependencies": {
+    "execa": "^9.3.0",
+    "fastq": "^1.17.1",
+    "minimatch": "^10.0.1",
+    "semver": "^7.6.3",
+    "tar": "^7.4.1",
+    "tar-stream": "^3.1.7",
+    "tgz-modify": "^1.0.4",
+    "undici": "^6.19.4"
+  }
 }

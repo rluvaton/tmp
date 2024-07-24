@@ -1,19 +1,19 @@
 {
-	"compilerOptions": {
-		"esModuleInterop": true,
-		"skipLibCheck": true,
-		"target": "es2022",
-		"allowJs": true,
-		"resolveJsonModule": true,
-		"moduleDetection": "force",
-		"isolatedModules": true,
-		"strict": true,
-		"noUncheckedIndexedAccess": false,
-		"noImplicitOverride": true,
-		"noImplicitAny": false,
-		"module": "NodeNext",
-		"sourceMap": true,
-		"lib": ["es2022"],
-		"outDir": "dist"
-	}
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "es2022",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "noImplicitOverride": true,
+    "noImplicitAny": false,
+    "module": "NodeNext",
+    "sourceMap": true,
+    "lib": ["es2022"],
+    "outDir": "dist"
+  }
 }

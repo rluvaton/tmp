@@ -2,10 +2,10 @@ import type * as npm from "@npm/types";
 import { fetchPackage } from "./fetcher.js";
 
 interface ModuleCache {
-	info: npm.Packument;
+  info: npm.Packument;
 
-	// All versions of the package
-	versions: string[];
+  // All versions of the package
+  versions: string[];
 }
 
 const cache: Map<string, ModuleCache> = new Map();
@@ -14,66 +14,66 @@ const fetchCache: Map<string, Promise<unknown>> = new Map();
 // TODO - allow saving cache to disk
 
 export function getModuleCache(name: string): ModuleCache | undefined {
-	return cache.get(name);
+  return cache.get(name);
 }
 
 export function isModuleInCache(name: string): boolean {
-	return cache.has(name);
+  return cache.has(name);
 }
 
 export function addNewModule(name: string, moduleInfo: npm.Packument): void {
-	if (cache.has(name)) {
-		return;
-	}
+  if (cache.has(name)) {
+    return;
+  }
 
-	cache.set(name, {
-		info: moduleInfo,
-		versions: Object.keys(moduleInfo.versions),
-	});
+  cache.set(name, {
+    info: moduleInfo,
+    versions: Object.keys(moduleInfo.versions),
+  });
 }
 
 export function isModuleFetchingInProgress(name: string): boolean {
-	return cache.has(name) || fetchCache.has(name);
+  return cache.has(name) || fetchCache.has(name);
 }
 
 export async function fetchModuleInfoToCache(
-	packageName: string,
+  packageName: string,
 ): Promise<npm.Packument> {
-	const prefix = `[${packageName}]`;
+  const prefix = `[${packageName}]`;
 
-	if (cache.has(packageName)) {
-		console.log(`${prefix} Already fetched`);
-		// biome-ignore lint/style/noNonNullAssertion:
-		return cache.get(packageName)!.info;
-	}
+  if (cache.has(packageName)) {
+    console.log(`${prefix} Already fetched`);
+    // biome-ignore lint/style/noNonNullAssertion:
+    return cache.get(packageName)!.info;
+  }
 
-	if (fetchCache.has(packageName)) {
-		console.log(
-			`${prefix} fetch already in progress, waiting for it to finish`,
-		);
-		await fetchCache.get(packageName);
+  if (fetchCache.has(packageName)) {
+    console.log(
+      `${prefix} fetch already in progress, waiting for it to finish`,
+    );
+    await fetchCache.get(packageName);
 
-		// biome-ignore lint/style/noNonNullAssertion:
-		return cache.get(packageName)!.info;
-	}
+    // biome-ignore lint/style/noNonNullAssertion:
+    return cache.get(packageName)!.info;
+  }
 
-	// TODO - add some progress bar for overall packages download
-	console.log(`${prefix} FETCHING`);
-	const fetchPackagePromise = fetchPackage(packageName).then((packageInfo) => {
-		addNewModule(packageName, packageInfo);
+  // TODO - add some progress bar for overall packages download
+  console.log(`${prefix} FETCHING`);
+  const fetchPackagePromise = fetchPackage(packageName).then((packageInfo) => {
+    addNewModule(packageName, packageInfo);
 
-		return packageInfo;
-	});
+    return packageInfo;
+  });
 
-	fetchCache.set(packageName, fetchPackagePromise);
-	const packageInfo = await fetchPackagePromise;
-	fetchCache.delete(packageName);
+  fetchCache.set(packageName, fetchPackagePromise);
+  const packageInfo = await fetchPackagePromise;
+  fetchCache.delete(packageName);
 
-	return packageInfo;
+  return packageInfo;
 }
 
 export function getLatestVersionForPackage(
-	packageName: string,
+  packageName: string,
 ): string | undefined {
-	return cache.get(packageName)?.info?.["dist-tags"]?.latest;
+  return cache.get(packageName)?.info?.["dist-tags"]?.latest;
 }
