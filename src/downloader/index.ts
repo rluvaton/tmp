@@ -1,14 +1,14 @@
+import * as fs from "node:fs";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
+import { request } from "undici";
+import {
+	type PackageJsonDetails,
+	getPackageJsonFromPackageTarFile,
+} from "../lib/npm/package-tar.js";
+import { writeFileInTar } from "../lib/tar/modify-files.js";
 import type { NeededPackage } from "../npm-graph/needed-packages.js";
 import { createFileNameFromPackage } from "../package-file-name.js";
-import {request} from "undici";
-import {pipeline} from "node:stream/promises";
-import * as fs from "node:fs";
-import {
-	getPackageJsonFromPackageTarFile,
-	type PackageJsonDetails,
-} from "../lib/npm/package-tar.js";
-import {writeFileInTar} from "../lib/tar/modify-files.js";
 
 // Worker to download the files and update the package json if needed
 async function fixPackage(packageDetails: NeededPackage, packagePath: string) {
@@ -26,7 +26,7 @@ async function fixPackage(packageDetails: NeededPackage, packagePath: string) {
 		throw e;
 	}
 
-	const removeKeys = [];
+	const removeKeys: string[] = [];
 
 	if (packageDetails.shouldRemoveCustomRegistry) {
 		removeKeys.push("registry");
@@ -97,6 +97,5 @@ export async function downloadPackage(
 
 	return filePath;
 }
-
 
 // TODO - maybe run in a worker or here

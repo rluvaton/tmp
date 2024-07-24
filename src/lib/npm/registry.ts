@@ -1,7 +1,8 @@
-import { execa } from "execa";
+import { ExecaError, execa } from "execa";
 
 export interface NpmOptions {
 	registry?: string;
+	cwd?: string;
 }
 
 function getNpmCliArgsFromOptions(options: NpmOptions): string[] {
@@ -24,49 +25,35 @@ export async function isPackagePublished({
 	options?: NpmOptions;
 }): Promise<boolean> {
 	const extraCliArgs = getNpmCliArgsFromOptions(options);
-	const { stdout, stderr } = await execa(
-		"npm",
-		["view", `${packageName}@${version}`, "--json", ...extraCliArgs],
-		{
-			// Don't throw on process failure
-			reject: false,
-		},
-	);
-
-	// biome-ignore lint/suspicious/noExplicitAny: we don't know the type if it's not an error or something
-	let parsed: any;
-
 	try {
-		parsed = JSON.parse(stdout);
-	} catch (e) {
-		console.error("Failed to parse JSON stdout", {
-			stdout,
-			stderr,
-			parseJsonError: e,
-		});
-
-		throw e;
-	}
-
-	const errorCode = parsed?.error?.code;
-
-	// Not published
-	if (errorCode === "E404") {
-		return false;
-	}
-
-	if (errorCode) {
-		let errorMessageFromOutput: string;
-		if (parsed.error.summary) {
-			errorMessageFromOutput = parsed.error.summary;
-			errorMessageFromOutput += parsed.error.detail || "";
-		} else {
-			errorMessageFromOutput = `Unknown error\n\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`;
+		await execa(
+			"npm",
+			["view", `${packageName}@${version}`, "--json", ...extraCliArgs],
+			{
+				cwd: options.cwd,
+			},
+		);
+	} catch (error) {
+		if (!(error instanceof ExecaError)) {
+			throw error;
 		}
 
-		throw new Error(errorMessageFromOutput);
+		const stdout = error.stdout as unknown as string;
+
+		try {
+			const parsed = JSON.parse(stdout);
+			const errorCode = parsed?.error?.code;
+
+			// Not published
+			if (errorCode === "E404") {
+				return false;
+			}
+		} catch {}
+
+		throw error;
 	}
 
+	// If not failed than the package version exists
 	return true;
 }
 
@@ -80,17 +67,22 @@ export async function isPublishedPackageLatest({
 	options?: NpmOptions;
 }): Promise<boolean> {
 	const extraCliArgs = getNpmCliArgsFromOptions(options);
-	const { all } = await execa(
+	const { stdout } = await execa(
 		"npm",
-		["dist-tag", "ls", `${packageName}@${version}`, ...extraCliArgs],
+		[
+			"view",
+			packageName,
+			// Version returns the latest
+			"version",
+			"--json",
+			...extraCliArgs,
+		],
 		{
-			all: true,
+			cwd: options.cwd,
 		},
 	);
 
-	const tags = all.split("\n");
-
-	return tags.includes(`latest: ${version}`);
+	return JSON.parse(stdout) === version;
 }
 
 export async function markPublishedPackageAsLatest({
@@ -109,6 +101,7 @@ export async function markPublishedPackageAsLatest({
 		["dist-tag", "add", `${packageName}@${version}`, "latest", ...extraCliArgs],
 		{
 			all: true,
+			cwd: options.cwd,
 		},
 	);
 }
@@ -116,26 +109,22 @@ export async function markPublishedPackageAsLatest({
 export async function publishPackage({
 	packageName,
 	version,
+	tarFilePath,
 	setLatest,
 	options = {},
 }: {
 	packageName: string;
 	version: string;
+	tarFilePath: string;
 	setLatest: boolean;
 	options?: NpmOptions;
 }) {
 	const extraCliArgs = getNpmCliArgsFromOptions(options);
-	const tagOptions: string[] = [];
 
-	if (!setLatest) {
-		tagOptions.push("--tag", `${packageName}@${version}`);
-	}
+	const tag = setLatest ? "latest" : `${packageName}@${version}`;
 
-	await execa(
-		"npm",
-		["publish", `${packageName}@${version}`, ...tagOptions, ...extraCliArgs],
-		{
-			all: true,
-		},
-	);
+	await execa("npm", ["publish", "--tag", tag, ...extraCliArgs, tarFilePath], {
+		all: true,
+		cwd: options.cwd,
+	});
 }

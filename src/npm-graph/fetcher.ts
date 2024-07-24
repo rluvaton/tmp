@@ -1,6 +1,5 @@
 import type * as npm from "@npm/types";
 
-
 export async function fetchPackage(
 	packageName: string,
 ): Promise<npm.Packument> {
@@ -11,14 +10,14 @@ export async function fetchPackage(
 
 	// TODO - on timeout, retry
 	const response = await fetch(`https://registry.npmjs.org/${packageName}`, {
-		method: "GET"
+		method: "GET",
 	});
 
 	if (response.status >= 400) {
 		const responseBody = await response.text();
 
-		console.error('Failed to fetch package', packageName, responseBody);
-		throw new Error(`Failed to fetch ${packageName}`)
+		console.error("Failed to fetch package", packageName, responseBody);
+		throw new Error(`Failed to fetch ${packageName}`);
 	}
 
 	return (await response.json()) as npm.Packument;

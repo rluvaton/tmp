@@ -39,7 +39,6 @@ run()
 		console.log("finished");
 	})
 	.catch((e) => {
-
 		console.error("Failed", e);
 		process.exit(1);
 	})

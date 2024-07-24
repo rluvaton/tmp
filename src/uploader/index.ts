@@ -1,11 +1,11 @@
-import {parseFileNameFromPackage} from "../package-file-name.js";
 import {
+	type NpmOptions,
 	isPackagePublished,
 	isPublishedPackageLatest,
 	markPublishedPackageAsLatest,
-	type NpmOptions,
 	publishPackage,
 } from "../lib/npm/registry.js";
+import { parseFileNameFromPackage } from "../package-file-name.js";
 
 export async function uploadPackage(filePath: string, options: NpmOptions) {
 	const parsed = parseFileNameFromPackage(filePath);
@@ -41,6 +41,7 @@ export async function uploadPackage(filePath: string, options: NpmOptions) {
 	await publishPackage({
 		packageName: parsed.name,
 		version: parsed.version,
+		tarFilePath: filePath,
 		setLatest: parsed.isLatest,
 		options,
 	});

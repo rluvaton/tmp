@@ -1,5 +1,6 @@
 import type { queueAsPromised } from "fastq";
 import * as fastq from "fastq";
+import { PromisePool } from "../lib/promise-pool.js";
 import {
 	fetchModuleInfoToCache,
 	isModuleFetchingInProgress,
@@ -14,7 +15,6 @@ import {
 	addNewNeededPackage,
 	hasNeededPackageVersion,
 } from "./needed-packages.js";
-import {PromisePool} from "../lib/promise-pool.js";
 
 enum AddPackageResult {
 	Added = 0,

@@ -10,6 +10,7 @@
 		"strict": true,
 		"noUncheckedIndexedAccess": false,
 		"noImplicitOverride": true,
+		"noImplicitAny": false,
 		"module": "NodeNext",
 		"sourceMap": true,
 		"lib": ["es2022"],
