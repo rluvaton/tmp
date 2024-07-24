@@ -26,6 +26,7 @@
 		"typescript": "^5.5.4"
 	},
 	"dependencies": {
+      "execa": "^9.3.0",
 		"fastq": "^1.17.1",
 		"minimatch": "^10.0.1",
 		"semver": "^7.6.3",

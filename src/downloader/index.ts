@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 import {
 	getPackageJsonFromPackageTarFile,
 	type PackageJsonDetails,
-} from "../npm.js";
+} from "../lib/npm/package-tar.js";
 import {writeFileInTar} from "../lib/tar/modify-files.js";
 
 // Worker to download the files and update the package json if needed
@@ -97,3 +97,6 @@ export async function downloadPackage(
 
 	return filePath;
 }
+
+
+// TODO - maybe run in a worker or here

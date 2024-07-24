@@ -1,4 +1,4 @@
-import {getFileContentFromTar, getListOfFilesFromTar} from "./lib/tar/index.js";
+import {getFileContentFromTar, getListOfFilesFromTar} from "../tar/index.js";
 
 export interface PackageJsonDetails {
     packageJson: Record<string, unknown>;
