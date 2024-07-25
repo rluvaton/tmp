@@ -1,6 +1,8 @@
 import fsPromises from "node:fs/promises";
+import path from "node:path";
 import cliProgress from "cli-progress";
 import fastq, { type queueAsPromised } from "fastq";
+import { loadCache, saveCache, saveCacheSync } from "./cache/index.js";
 import { downloadPackage } from "./downloader/index.js";
 import { doesDirectoryExists } from "./lib/fs-helpers.js";
 import { PackagesGraph } from "./npm-graph/index.js";
@@ -11,8 +13,6 @@ import {
   listenToNewPackages,
   removeNewPackageListener,
 } from "./npm-graph/needed-packages.js";
-import { loadCache, saveCache, saveCacheSync } from "./cache/index.js";
-import path from "node:path";
 import { ROOT_DIR } from "./root-dir.js";
 
 export interface FetchAndDownloadOptions {

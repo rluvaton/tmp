@@ -26,8 +26,7 @@ export function isModuleInCache(name: string): boolean {
 }
 
 export function haveModuleInfoCache(): boolean {
-    return cache.size > 0;
-
+  return cache.size > 0;
 }
 
 export function addNewModule(name: string, moduleInfo: npm.Packument): void {

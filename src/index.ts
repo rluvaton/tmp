@@ -48,8 +48,8 @@ async function run() {
       peerDependencies: true,
     },
     alsoFetchLatest: true,
-    alwaysSaveCache: true
-  })
+    alwaysSaveCache: true,
+  });
 }
 
 run()
@@ -60,4 +60,3 @@ run()
     console.error("Failed", e);
     process.exit(1);
   });
-
