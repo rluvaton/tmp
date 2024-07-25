@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import fsPromises from "node:fs/promises";
+import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import zlib from "node:zlib";
 import tarStream from "tar-stream";
@@ -12,7 +13,7 @@ interface FilesToChange {
   [filePathInTar: string]: string | ((content: string) => string | null);
 }
 
-export async function writeFileInTar(
+export async function modifyFilesInTar(
   tarFile: string,
   filesToChange: FilesToChange,
 ) {
@@ -74,9 +75,9 @@ function getPipelines({
       stream.resume();
     } else {
       try {
-        // @ts-expect-error - this is the correct arguments
-        const fileContent = await stream.reduce(
-          newContent,
+        // Need to do this as for some reason the stream does not have the Readable functionality
+        const readable = Readable.from(stream);
+        const fileContent = await readable.reduce(
           (acc: string, chunk: Buffer) => {
             return acc + chunk.toString();
           },

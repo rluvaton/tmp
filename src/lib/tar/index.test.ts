@@ -15,7 +15,7 @@ describe("Tar", () => {
     });
     const packageJsonLists = {
       "package/package.json": topPackageJson,
-      "package/something/package.json": otherPackageJson,
+      "package/tar_file_content_some/package.json": otherPackageJson,
     };
     const tmpTarFile = await createTmpTgzFile({
       ...packageJsonLists,

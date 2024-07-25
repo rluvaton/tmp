@@ -1,8 +1,9 @@
 import fs from "node:fs";
-import { finished } from "node:stream/promises";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import zlib from "node:zlib";
 import { minimatch } from "minimatch";
-import * as tar from "tar";
-import { InMemoryWritable } from "../streams-helper.js";
+import tarStream from "tar-stream";
 
 /**
  * Extracts a single file from .tgz archive
@@ -13,25 +14,31 @@ export async function getFileContentFromTar(
   tarFile: string,
   filePathGlob: string,
 ): Promise<Promise<Record<string, Buffer>>> {
-  const filesBuffers: Record<string, Buffer | InMemoryWritable> = {};
+  const gunzip = zlib.createGunzip();
+  const extract = tarStream.extract();
 
-  await tar.extract({
-    file: tarFile,
-    filter: (path) => minimatch(path, filePathGlob),
-    transform(entry) {
-      filesBuffers[entry.path] = new InMemoryWritable();
+  const filesBuffers: Record<string, Buffer> = {};
 
-      return filesBuffers[entry.path];
-    },
+  extract.on("entry", async (header, stream, next) => {
+    if (!minimatch(header.name, filePathGlob)) {
+      next();
+      return;
+    }
+    // Need to do this as for some reason the stream does not have the Readable functionality
+    const readable = Readable.from(stream);
+
+    filesBuffers[header.name] = Buffer.concat(await readable.toArray());
+
+    next();
   });
 
-  for (const key of Object.keys(filesBuffers)) {
-    filesBuffers[key] = Buffer.concat(
-      (filesBuffers[key] as InMemoryWritable).internalData,
-    );
-  }
+  await pipeline(
+    fs.createReadStream(tarFile, { autoClose: true }),
+    gunzip,
+    extract,
+  );
 
-  return filesBuffers as Record<string, Buffer>;
+  return filesBuffers;
 }
 
 export async function getListOfFilesFromTar(
@@ -39,22 +46,24 @@ export async function getListOfFilesFromTar(
   matchingGlobPatterns?: string,
 ): Promise<string[]> {
   const fileList: string[] = [];
+  const gunzip = zlib.createGunzip();
+  const extract = tarStream.extract();
 
-  const listFilesStream = fs
-    .createReadStream(tarFile)
-    .pipe(tar.t())
-    .on("entry", (entry) => {
-      if (
-        matchingGlobPatterns &&
-        !minimatch(entry.path, matchingGlobPatterns)
-      ) {
-        return;
-      }
+  extract.on("entry", async (header, stream, next) => {
+    if (
+      !matchingGlobPatterns ||
+      !minimatch(header.name, matchingGlobPatterns)
+    ) {
+      fileList.push(header.name);
+    }
+    next();
+  });
 
-      fileList.push(entry.path);
-    });
-
-  await finished(listFilesStream);
+  await pipeline(
+    fs.createReadStream(tarFile, { autoClose: true }),
+    gunzip,
+    extract,
+  );
 
   return fileList;
 }

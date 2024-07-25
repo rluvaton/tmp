@@ -36,7 +36,6 @@
     "fastq": "^1.17.1",
     "minimatch": "^10.0.1",
     "semver": "^7.6.3",
-    "tar": "^7.4.1",
     "tar-stream": "^3.1.7",
     "tgz-modify": "^1.0.4",
     "undici": "^6.19.4"

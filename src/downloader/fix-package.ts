@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { SingleBar } from "cli-progress";
 import { getPackageJsonPathFromTarFile } from "../lib/npm/package-tar.js";
-import { writeFileInTar } from "../lib/tar/modify-files.js";
+import { modifyFilesInTar } from "../lib/tar/modify-files.js";
 import type { NeededPackage } from "../npm-graph/needed-packages.js";
 
 export async function fixPackage(
@@ -38,7 +38,7 @@ export async function fixPackage(
     step: "Update file",
   });
 
-  await writeFileInTar(packagePath, {
+  await modifyFilesInTar(packagePath, {
     [packageJsonPath]: (content) => {
       const packageJson = JSON.parse(content);
 
