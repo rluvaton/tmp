@@ -1,37 +1,67 @@
-import { PackagesGraph } from "./npm-graph/index.js";
-import { getAllNeededPackages } from "./npm-graph/needed-packages.js";
+import path from "node:path";
+import { loadCache, saveCache, saveCacheSync } from "./cache/index.js";
+import { fetchAndDownload } from "./fetch-and-download.js";
+import { ROOT_DIR } from "./root-dir.js";
 
-const cache = new PackagesGraph({
-  concurrency: 10,
-  addLatest: true,
-  include: {
-    bundledDependencies: false,
-    bundleDependencies: false,
-    devDependencies: false,
-    dependencies: true,
-    peerDependencies: true,
-  },
-});
+//
+// await downloadPackage(
+//   {
+//     name: "@biomejs/cli-darwin-arm64",
+//     version: "1.8.3",
+//     url: "https://registry.npmjs.org/@biomejs/cli-darwin-arm64/-/cli-darwin-arm64-1.8.3.tgz",
+//     shouldRemoveProvenance: false,
+//     shouldRemoveCustomRegistry: false,
+//     isLatest: false,
+//   },
+//   path.join(ROOT_DIR, "output"),
+//   downloadProgressBar,
+// );
 
-async function addPackages() {
-  // await cache.addNewPackage('react');
-  // await cache.addNewPackage('lodash');
-  // tap:^14.2.4
-  console.time("add tap@^14.2.4");
-  await cache.addNewPackage("tap", "^14.2.4");
-  console.timeEnd("add tap@^14.2.4");
-}
+const outputFolder = path.join(ROOT_DIR, "output");
+const cacheFilePath = path.join(outputFolder, "cache.json");
+
+const abort = new AbortController();
 
 async function run() {
-  try {
-    await addPackages();
-  } catch (e) {
-    console.error("Failed to add packages", e);
+  // await downloadPackage(
+  //   {
+  //     name: "@sigstore/bundle@2.3.2",
+  //     version: "2.3.2",
+  //     isLatest: true,
+  //     url: "https://registry.npmjs.org/@sigstore/bundle/-/bundle-2.3.2.tgz",
+  //     shouldRemoveProvenance: true,
+  //     shouldRemoveCustomRegistry: true,
+  //   },
+  //   "/Users/rluvaton/dev/open-source/rluvaton/bulk-npm-publish-2/output",
+  // );
 
-    // TODO - save cache to disk so next time can continue from there
+  await loadCache(cacheFilePath);
+
+  await fetchAndDownload({
+    packages: {
+      tap: ["^14.2.4"],
+      // "@sigstore/bundle": ["2.3.2"],
+    },
+    fetchConcurrency: 10,
+    downloadConcurrency: 10,
+    outputFolder,
+    include: {
+      bundledDependencies: false,
+      bundleDependencies: false,
+      devDependencies: false,
+      dependencies: true,
+      peerDependencies: true,
+    },
+    alsoFetchLatest: true,
+    signal: abort.signal,
+  }).catch(async (e) => {
+    // Only in failure save cache
+    await saveCache(cacheFilePath).catch((cacheError) =>
+      console.error("Failed to save cache", cacheError),
+    );
 
     throw e;
-  }
+  });
 }
 
 run()
@@ -41,13 +71,20 @@ run()
   .catch((e) => {
     console.error("Failed", e);
     process.exit(1);
-  })
-  .finally(() => {
-    const neededPackages = getAllNeededPackages();
-    console.log("packagesNeeded:");
-    console.log(neededPackages);
-
-    const totalPackageVersions = neededPackages.length;
-
-    console.log("Total of packages needed:", totalPackageVersions);
   });
+
+// On CTRL-C
+process.on("SIGINT", () => {
+  abort.abort(new Error("Received SIGINT"));
+
+  console.log("Saving cache");
+  // Only in failure save cache
+  try {
+    saveCacheSync(cacheFilePath);
+    console.log("Cache saved successfully");
+  } catch (e) {
+    console.error("Failed to save cache", e);
+  }
+
+  process.exit(2 /* SIGINT */);
+});

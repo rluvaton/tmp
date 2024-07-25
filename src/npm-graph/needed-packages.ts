@@ -1,5 +1,6 @@
-import type * as npm from "@npm/types";
-import { getLatestVersionForPackage } from "./module-cache.js";
+import { EventEmitter } from "node:events";
+import { getLatestVersionForPackage } from "./module-cache/index.js";
+import type { LightModuleVersionInfo } from "./module-cache/light-module-info.js";
 
 interface SingleNeededPackageVersion {
   url: string;
@@ -17,7 +18,9 @@ interface NeededPackages {
   [version: string]: SingleNeededPackageVersion;
 }
 
-// TODO - allow saving cache to disk
+const neededPackagesEmitter = new EventEmitter<{
+  newPackage: [NeededPackage];
+}>();
 
 // Package name to versions
 const neededPackages: Map<string, NeededPackages> = new Map();
@@ -29,6 +32,13 @@ export function getAllNeededPackages(): NeededPackage[] {
       version,
       ...info,
     })),
+  );
+}
+
+export function getNumberOfPackagesToDownload(): number {
+  return Array.from(neededPackages.entries()).reduce(
+    (acc, [, versions]) => acc + Object.keys(versions).length,
+    0,
   );
 }
 
@@ -49,7 +59,7 @@ export function getAlreadyNeededPackageVersions(name: string) {
 
 export function addNewNeededPackage(
   name: string,
-  packageVersion: npm.PackumentVersion,
+  packageVersion: LightModuleVersionInfo,
 ): void {
   const isLatest = getLatestVersionForPackage(name) === packageVersion.version;
 
@@ -69,4 +79,20 @@ export function addNewNeededPackage(
     shouldRemoveProvenance: !!packageVersion.publishConfig?.provenance,
     shouldRemoveCustomRegistry: !!packageVersion.publishConfig?.registry,
   };
+
+  neededPackagesEmitter.emit("newPackage", {
+    name,
+    version: packageVersion.version,
+    ...neededPackage[packageVersion.version],
+  });
+}
+
+export function listenToNewPackages(
+  fn: (neededPackage: NeededPackage) => void,
+) {
+  neededPackagesEmitter.addListener("newPackage", fn);
+}
+
+export function removeNewPackageListener() {
+  neededPackagesEmitter.removeAllListeners("newPackage");
 }

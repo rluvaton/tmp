@@ -34,22 +34,27 @@ export async function getFileContentFromTar(
   return filesBuffers as Record<string, Buffer>;
 }
 
-/**
- *
- * @param {string} tarFile
- * @return {Promise<string[]>}
- */
 export async function getListOfFilesFromTar(
   tarFile: string,
+  matchingGlobPatterns?: string,
 ): Promise<string[]> {
   const fileList: string[] = [];
 
-  await finished(
-    fs
-      .createReadStream(tarFile)
-      .pipe(tar.t())
-      .on("entry", (entry) => fileList.push(entry.path)),
-  );
+  const listFilesStream = fs
+    .createReadStream(tarFile)
+    .pipe(tar.t())
+    .on("entry", (entry) => {
+      if (
+        matchingGlobPatterns &&
+        !minimatch(entry.path, matchingGlobPatterns)
+      ) {
+        return;
+      }
+
+      fileList.push(entry.path);
+    });
+
+  await finished(listFilesStream);
 
   return fileList;
 }

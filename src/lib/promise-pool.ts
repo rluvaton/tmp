@@ -21,13 +21,21 @@ interface PromiseWithId<T> extends Promise<T> {
 export class PromisePool<R> {
   private pool: PromiseWithId<R>[] = [];
   private readonly poolSize: number;
+  private readonly signal: AbortSignal | undefined;
   private pending = 0;
 
-  constructor(size: number) {
-    this.poolSize = size;
+  constructor(options: {
+    concurrency: number;
+    signal?: AbortSignal;
+  }) {
+    this.poolSize = options.concurrency;
+    this.signal = options.signal;
   }
 
-  async add(fn: PoolFunction<R>): Promise<R> {
+  async add(fn: PoolFunction<R>): Promise<R | undefined> {
+    if (this.signal?.aborted) {
+      throw this.signal.reason || new Error("Cant add while aborted");
+    }
     // biome-ignore lint/style/noNonNullAssertion: the idGenerator is infinite
     const id = idGenerator.next().value!;
 
@@ -36,7 +44,14 @@ export class PromisePool<R> {
     return this.runFunction(fn, id);
   }
 
-  private async runFunction(fn: PoolFunction<R>, id: number): Promise<R> {
+  private async runFunction(
+    fn: PoolFunction<R>,
+    id: number,
+  ): Promise<R | undefined> {
+    if (this.signal?.aborted) {
+      return;
+    }
+
     if (this.pool.length >= this.poolSize) {
       return Promise.race(this.pool).then(() => this.runFunction(fn, id));
     }
@@ -74,7 +89,7 @@ export class PromisePool<R> {
   }
 
   isEmpty() {
-    return this.pool.length === 0;
+    return this.signal?.aborted || this.pool.length === 0;
   }
 
   getNumberOfPendingPromises() {

@@ -1,6 +1,7 @@
 import type * as npm from "@npm/types";
 import semver from "semver";
-import { getModuleCache } from "./module-cache.js";
+import { getModuleCache } from "./module-cache/index.js";
+import type { LightModuleVersionInfo } from "./module-cache/light-module-info.js";
 import {
   getAlreadyNeededPackageVersions,
   hasNeededPackage,
@@ -17,7 +18,7 @@ export interface DependenciesType {
 export function getBasedOnDistTag(
   packageName: string,
   distTag: string,
-): npm.PackumentVersion | undefined {
+): LightModuleVersionInfo | undefined {
   const packageInfo = getModuleCache(packageName)?.info;
 
   if (!packageInfo) {
@@ -37,7 +38,7 @@ export function getSpecificPackageVersion(
   packageName: string,
   versionRangeOrDistTag: string,
   options: { preferAlreadyDownloaded?: boolean } = {},
-): npm.PackumentVersion | undefined {
+): LightModuleVersionInfo | undefined {
   const packageInfo = getModuleCache(packageName);
 
   if (!packageInfo) {
@@ -56,7 +57,7 @@ export function getBasedOnVersionRange(
   {
     preferAlreadyDownloaded = false,
   }: { preferAlreadyDownloaded?: boolean } = {},
-): npm.PackumentVersion | undefined {
+): LightModuleVersionInfo | undefined {
   const packageInfo = getModuleCache(packageName);
 
   if (!packageInfo) {
@@ -110,7 +111,7 @@ export function getPackageDependencies(
 }
 
 export function getSpecificPackageDependencies(
-  specificPackageVersion: npm.PackumentVersion,
+  specificPackageVersion: LightModuleVersionInfo,
   {
     bundleDependencies = true,
     bundledDependencies = true,

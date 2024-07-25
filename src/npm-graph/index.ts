@@ -1,11 +1,10 @@
-import type { queueAsPromised } from "fastq";
-import * as fastq from "fastq";
+import { EventEmitter } from "node:events";
 import { PromisePool } from "../lib/promise-pool.js";
 import {
   fetchModuleInfoToCache,
   isModuleFetchingInProgress,
   isModuleInCache,
-} from "./module-cache.js";
+} from "./module-cache/index.js";
 import {
   type DependenciesType,
   getSpecificPackageDependencies,
@@ -16,33 +15,38 @@ import {
   hasNeededPackageVersion,
 } from "./needed-packages.js";
 
-enum AddPackageResult {
-  Added = 0,
-  AlreadyExist = 1,
-  MissingPackageVersion = 2,
-  MissingPackage = 3,
-}
-
-export class PackagesGraph {
+export class PackagesGraph extends EventEmitter<{
+  newPackage: [packageName: string, versionRange: string];
+  morePackages: [morePackages: number];
+}> {
   private fetchDataPool: PromisePool<unknown>;
   private include: DependenciesType;
   private addLatest: boolean;
+  private signal: AbortSignal | undefined;
 
   constructor({
     concurrency,
     include,
     addLatest,
+    signal,
   }: {
     concurrency: number;
     include: DependenciesType;
     addLatest: boolean;
+    signal?: AbortSignal;
   }) {
-    this.fetchDataPool = new PromisePool(concurrency);
+    super();
+    this.signal = signal;
+    this.fetchDataPool = new PromisePool({ concurrency, signal });
     this.include = include;
     this.addLatest = addLatest;
   }
 
   async addNewPackage(packageName: string, versionRangeOrDistTag = "latest") {
+    if (this.signal?.aborted) {
+      return;
+    }
+
     const promises: Promise<void>[] = [];
 
     promises.push(
@@ -73,8 +77,10 @@ export class PackagesGraph {
     packageName: string;
     versionRangeOrDistTag: string;
   }): Promise<void> {
+    if (this.signal?.aborted) {
+      return;
+    }
     const prefix = `[${packageName}:${versionRangeOrDistTag}]`;
-    console.log(`${prefix} Adding`);
 
     // TODO - add some progress bar for overall packages download
     if (
@@ -84,8 +90,16 @@ export class PackagesGraph {
       // Don't add to pool, so we won't take the pool by duplicate requests
       await fetchModuleInfoToCache(packageName);
     } else if (!isModuleInCache(packageName)) {
-      await this.fetchDataPool.add(() => fetchModuleInfoToCache(packageName));
+      await this.fetchDataPool.add(() =>
+        fetchModuleInfoToCache(packageName, this.signal),
+      );
     }
+
+    if (this.signal?.aborted) {
+      return;
+    }
+
+    this.emit("newPackage", packageName, versionRangeOrDistTag);
 
     const version = getSpecificPackageVersion(
       packageName,
@@ -102,7 +116,6 @@ export class PackagesGraph {
 
     // Already processed
     if (hasNeededPackageVersion(packageName, version.version)) {
-      // console.log(`${prefix} already exists`);
       return;
     }
 
@@ -124,14 +137,15 @@ export class PackagesGraph {
         ].filter(Boolean),
     );
 
+    this.emit("morePackages", allDepsProcessData.length);
+
     // TODO - maybe do in parallel, but fetch only once, so if already in progress of fetching
     await Promise.all(
       allDepsProcessData.map((data) => data && this.processSinglePackage(data)),
     );
 
-    console.log(`${prefix} finished`);
+    // console.log(`${prefix} finished`);
 
     // What about if dependency failed to add or something
-    return;
   }
 }

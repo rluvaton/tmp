@@ -33,7 +33,7 @@ function getLargestIndex(arr: { index: number }[]): number {
 describe("Promise Pool", () => {
   it("should run all functions immediately when the pool is not filled yet", () => {
     const poolSize = 5;
-    const promisePool = new PromisePool<void>(poolSize);
+    const promisePool = new PromisePool<void>({ concurrency: poolSize });
     const deferredPromises: DeferredPromise<void>[] = [];
 
     for (let i = 0; i < poolSize; i++) {
@@ -52,7 +52,7 @@ describe("Promise Pool", () => {
 
   it("should execute all functions in the pool eventually when exceeding the pool size", async () => {
     const poolSize = 6;
-    const promisePool = new PromisePool<void>(poolSize);
+    const promisePool = new PromisePool<void>({ concurrency: poolSize });
     const deferredPromises: (DeferredPromise<void> & { index: number })[] = [];
 
     const promises: Promise<void>[] = [];
@@ -95,7 +95,7 @@ describe("Promise Pool", () => {
 
   it("should wait for the first promise to finish before running the next function that are out of the pool (when pool size reached)", async () => {
     const poolSize = 5;
-    const promisePool = new PromisePool<void>(poolSize);
+    const promisePool = new PromisePool<void>({ concurrency: poolSize });
     const deferredPromises: (DeferredPromise<void> & { index: number })[] = [];
 
     for (let i = 0; i < poolSize * 2; i++) {
@@ -126,7 +126,7 @@ describe("Promise Pool", () => {
 
   it("should execute functions in the order of insertion", async () => {
     const poolSize = 6;
-    const promisePool = new PromisePool<void>(poolSize);
+    const promisePool = new PromisePool<void>({ concurrency: poolSize });
     const deferredPromises: (DeferredPromise<void> & { index: number })[] = [];
 
     const promises: Promise<void>[] = [];
@@ -181,7 +181,7 @@ describe("Promise Pool", () => {
 
   it("should not execute more than the pool size when adding all the functions added at the beginning", () => {
     const poolSize = 5;
-    const promisePool = new PromisePool<void>(poolSize);
+    const promisePool = new PromisePool<void>({ concurrency: poolSize });
     const deferredPromises: DeferredPromise<void>[] = [];
 
     for (let i = 0; i < poolSize * 2; i++) {
@@ -200,9 +200,9 @@ describe("Promise Pool", () => {
 
   it("should return the function result when adding when pool is not filled", async () => {
     const poolSize = 5;
-    const promisePool = new PromisePool<number>(poolSize);
+    const promisePool = new PromisePool<number>({ concurrency: poolSize });
     const deferredPromises: DeferredPromise<number>[] = [];
-    const promises: Promise<number>[] = [];
+    const promises: Promise<number | undefined>[] = [];
 
     for (let i = 0; i < poolSize; i++) {
       promises.push(
@@ -229,10 +229,10 @@ describe("Promise Pool", () => {
 
   it("should return the function result when adding when pool is already full", async () => {
     const poolSize = 6;
-    const promisePool = new PromisePool<number>(poolSize);
+    const promisePool = new PromisePool<number>({ concurrency: poolSize });
     const deferredPromises: (DeferredPromise<number> & { index: number })[] =
       [];
-    const promises: Promise<number>[] = [];
+    const promises: Promise<number | undefined>[] = [];
 
     const pendingSize = poolSize * 2;
 
@@ -254,5 +254,92 @@ describe("Promise Pool", () => {
       results,
       Array.from({ length: pendingSize }, (_, i) => i),
     );
+  });
+
+  it("should not run any pending promises after signal abort", async () => {
+    const poolSize = 6;
+    const ac = new AbortController();
+
+    const promisePool = new PromisePool<void>({
+      concurrency: poolSize,
+      signal: ac.signal,
+    });
+    const deferredPromises: (DeferredPromise<void> & { index: number })[] = [];
+
+    for (let i = 0; i < poolSize * 2; i++) {
+      // noinspection ES6MissingAwait
+      promisePool.add(() => {
+        const deferred = createDeferredPromise<void>();
+
+        deferredPromises.push({ ...deferred, index: i });
+
+        return deferred.promise;
+      });
+    }
+
+    deferredPromises[0].resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    ac.abort();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // + 1 as the first resolved
+    assert.strictEqual(deferredPromises.length, poolSize + 1);
+
+    assert.strictEqual(promisePool.isEmpty(), true);
+  });
+
+  it("should return undefined when adding when pool is already full and signal aborted", async () => {
+    const poolSize = 6;
+    const ac = new AbortController();
+
+    const promisePool = new PromisePool<number>({
+      concurrency: poolSize,
+      signal: ac.signal,
+    });
+    const deferredPromises: (DeferredPromise<number> & { index: number })[] =
+      [];
+    const promises: Promise<number | undefined>[] = [];
+
+    const pendingSize = poolSize * 2;
+
+    for (let i = 0; i < pendingSize; i++) {
+      const deferred = createDeferredPromise<number>();
+
+      deferredPromises.push({ ...deferred, index: i });
+    }
+
+    for (let i = 0; i < pendingSize; i++) {
+      promises.push(promisePool.add(() => deferredPromises[i].promise));
+    }
+
+    ac.abort();
+
+    // biome-ignore lint/complexity/noForEach: cleaner
+    deferredPromises.forEach((deferred) => deferred.resolve(deferred.index));
+
+    const results = await Promise.all(promises);
+    assert.deepStrictEqual(
+      results,
+      Array.from({ length: pendingSize }, (_, i) =>
+        i < poolSize ? i : undefined,
+      ),
+    );
+  });
+
+  it("should throw when adding after signal abort", async () => {
+    const poolSize = 6;
+    const ac = new AbortController();
+    const promisePool = new PromisePool<void>({
+      concurrency: poolSize,
+      signal: ac.signal,
+    });
+
+    // noinspection ES6MissingAwait
+    promisePool.add(async () => {});
+
+    ac.abort();
+
+    await assert.rejects(() => promisePool.add(async () => {}));
   });
 });

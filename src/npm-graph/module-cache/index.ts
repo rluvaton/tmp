@@ -1,14 +1,18 @@
 import type * as npm from "@npm/types";
-import { fetchPackage } from "./fetcher.js";
+import { fetchPackage } from "../fetcher.js";
+import {
+  type LightModuleInfo,
+  convertToLightModuleInfo,
+} from "./light-module-info.js";
 
-interface ModuleCache {
-  info: npm.Packument;
+export interface ModuleCache {
+  info: LightModuleInfo;
 
   // All versions of the package
   versions: string[];
 }
 
-const cache: Map<string, ModuleCache> = new Map();
+let cache: Map<string, ModuleCache> = new Map();
 const fetchCache: Map<string, Promise<unknown>> = new Map();
 
 // TODO - allow saving cache to disk
@@ -27,9 +31,30 @@ export function addNewModule(name: string, moduleInfo: npm.Packument): void {
   }
 
   cache.set(name, {
+    info: convertToLightModuleInfo(moduleInfo),
+    versions: Object.keys(moduleInfo.versions),
+  });
+}
+export function addNewLightModule(
+  name: string,
+  moduleInfo: LightModuleInfo,
+): void {
+  if (cache.has(name)) {
+    return;
+  }
+
+  cache.set(name, {
     info: moduleInfo,
     versions: Object.keys(moduleInfo.versions),
   });
+}
+
+export function loadModuleInfoCache(data: Record<string, ModuleCache>) {
+  cache = new Map(Object.entries(data));
+}
+
+export function getModuleInfoCache(): Record<string, ModuleCache> {
+  return Object.fromEntries(cache);
 }
 
 export function isModuleFetchingInProgress(name: string): boolean {
@@ -38,32 +63,43 @@ export function isModuleFetchingInProgress(name: string): boolean {
 
 export async function fetchModuleInfoToCache(
   packageName: string,
-): Promise<npm.Packument> {
+  signal?: AbortSignal,
+): Promise<LightModuleInfo | undefined> {
   const prefix = `[${packageName}]`;
 
   if (cache.has(packageName)) {
-    console.log(`${prefix} Already fetched`);
+    // console.log(`${prefix} Already fetched`);
     // biome-ignore lint/style/noNonNullAssertion:
     return cache.get(packageName)!.info;
   }
 
   if (fetchCache.has(packageName)) {
-    console.log(
-      `${prefix} fetch already in progress, waiting for it to finish`,
-    );
+    // console.log(
+    //   `${prefix} fetch already in progress, waiting for it to finish`,
+    // );
     await fetchCache.get(packageName);
+
+    if (signal?.aborted) {
+      return;
+    }
 
     // biome-ignore lint/style/noNonNullAssertion:
     return cache.get(packageName)!.info;
   }
 
   // TODO - add some progress bar for overall packages download
-  console.log(`${prefix} FETCHING`);
-  const fetchPackagePromise = fetchPackage(packageName).then((packageInfo) => {
-    addNewModule(packageName, packageInfo);
+  // console.log(`${prefix} FETCHING`);
+  const fetchPackagePromise = fetchPackage(packageName, signal).then(
+    (packageInfo) => {
+      const lightMode = convertToLightModuleInfo(packageInfo);
 
-    return packageInfo;
-  });
+      if (!signal?.aborted) {
+        addNewLightModule(packageName, lightMode);
+      }
+
+      return lightMode;
+    },
+  );
 
   fetchCache.set(packageName, fetchPackagePromise);
   const packageInfo = await fetchPackagePromise;

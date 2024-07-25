@@ -1,101 +1,64 @@
-import * as fs from "node:fs";
 import path from "node:path";
-import { pipeline } from "node:stream/promises";
-import { request } from "undici";
-import {
-  type PackageJsonDetails,
-  getPackageJsonFromPackageTarFile,
-} from "../lib/npm/package-tar.js";
-import { writeFileInTar } from "../lib/tar/modify-files.js";
+import type { MultiBar } from "cli-progress";
+import { doesFileExist } from "../lib/fs-helpers.js";
 import type { NeededPackage } from "../npm-graph/needed-packages.js";
 import { createFileNameFromPackage } from "../package-file-name.js";
-
-// Worker to download the files and update the package json if needed
-async function fixPackage(packageDetails: NeededPackage, packagePath: string) {
-  const prettyPath = path.basename(packagePath);
-
-  let packageJsonDetails: PackageJsonDetails;
-  try {
-    packageJsonDetails = await getPackageJsonFromPackageTarFile(packagePath);
-  } catch (e) {
-    if ((e as { code: string }).code === "TAR_BAD_ARCHIVE") {
-      console.error(`${prettyPath} is not a valid tar file`, e);
-    } else {
-      console.error(`Failed to get package metadata for ${prettyPath}`);
-    }
-    throw e;
-  }
-
-  const removeKeys: string[] = [];
-
-  if (packageDetails.shouldRemoveCustomRegistry) {
-    removeKeys.push("registry");
-    packageJsonDetails.packageJson.registry = undefined;
-  }
-
-  if (packageDetails.shouldRemoveProvenance) {
-    removeKeys.push("provenance");
-    packageJsonDetails.packageJson.provenance = undefined;
-  }
-
-  if (removeKeys.length) {
-    console.log(
-      `Removing ${removeKeys.join(", ")} from ${prettyPath} package.json`,
-    );
-
-    await writeFileInTar(packagePath, {
-      [packageJsonDetails.packageJsonPathInsideTar]: JSON.stringify(
-        packageJsonDetails.packageJson,
-        null,
-        2,
-      ),
-    });
-  }
-}
-
-async function downloadPackageUrl(
-  packageDetails: NeededPackage,
-  folder: string,
-): Promise<string> {
-  const fileName = createFileNameFromPackage(packageDetails);
-
-  const fullPath = path.join(folder, fileName);
-
-  const response = await request(packageDetails.url, {
-    method: "GET",
-  });
-
-  if (response.statusCode >= 400) {
-    console.error(
-      "Failed to download file ",
-      packageDetails.url,
-      await response.body
-        .text()
-        .catch(() => "response.body.text().catch(() failed"),
-    );
-
-    throw new Error(`Failed to download file ${packageDetails.url}`);
-  }
-
-  await pipeline(response.body, fs.createWriteStream(fullPath));
-
-  return fullPath;
-}
+import { downloadPackageUrl } from "./download.js";
+import { fixPackage } from "./fix-package.js";
 
 export async function downloadPackage(
   packageDetails: NeededPackage,
   folder: string,
+  progressBar?: MultiBar,
 ) {
-  const filePath = await downloadPackageUrl(packageDetails, folder);
+  const fileName = createFileNameFromPackage(packageDetails);
+  const fullPath = path.join(folder, fileName);
+
+  const downloadProgressBar = progressBar?.create(
+    3,
+    0,
+    {},
+    {
+      clearOnComplete: false,
+      stopOnComplete: false,
+      hideCursor: true,
+      format: `{step} | {bar} | ${packageDetails.name}@${packageDetails.version} | {value}/{total}`,
+
+      formatValue: (value, options, type) => {
+        // noinspection SuspiciousTypeOfGuard
+        if (typeof value === "number") {
+          return value % 1 === 0 ? value.toString() : value.toFixed(2);
+        }
+        return value;
+      },
+    },
+  );
+
+  if (!(await doesFileExist(fullPath))) {
+    downloadProgressBar?.update({
+      step: "Fetching",
+    });
+
+    await downloadPackageUrl(packageDetails, fullPath, downloadProgressBar);
+
+    downloadProgressBar?.setTotal(3);
+    downloadProgressBar?.update(2, {
+      step: "Downloaded",
+    });
+  }
 
   if (
     packageDetails.shouldRemoveCustomRegistry ||
     packageDetails.shouldRemoveProvenance
   ) {
-    await fixPackage(packageDetails, filePath);
+    downloadProgressBar?.update(2, {
+      step: "Fixing",
+    });
+    await fixPackage(packageDetails, fullPath, downloadProgressBar);
   }
 
-  return filePath;
-}
+  downloadProgressBar?.stop();
 
-// TODO - maybe run in a worker or here
+  // biome-ignore lint/style/noNonNullAssertion: <explanation>
+  progressBar?.remove(downloadProgressBar!);
+}

@@ -6,7 +6,10 @@ import tarStream from "tar-stream";
 import { ONE_MB } from "../fs-helpers.js";
 
 interface FilesToChange {
-  [filePathInTar: string]: string;
+  /**
+   * Either a new content or a function to change the content
+   */
+  [filePathInTar: string]: string | ((content: string) => string | null);
 }
 
 export async function writeFileInTar(
@@ -17,7 +20,7 @@ export async function writeFileInTar(
 
   const uncompressedSizeInBytes = await getUncompressedTgzSizeInBytes(tarFile);
 
-  const useInMemory = uncompressedSizeInBytes > ONE_MB * 10;
+  const useInMemory = uncompressedSizeInBytes <= ONE_MB * 10;
 
   const { input: inputPipeline, output: outputPipeline } = getPipelines({
     inputFile: tarFile,
@@ -54,7 +57,7 @@ function getPipelines({
     pack.finalize();
   });
 
-  extract.on("entry", (header, stream, next) => {
+  extract.on("entry", async (header, stream, next) => {
     const newContent = filesToChange[header.name];
 
     // If missing override, keep the original content
@@ -63,9 +66,37 @@ function getPipelines({
       return;
     }
 
+    // New content
+    if (typeof newContent === "string") {
+      stream.on("end", () => pack.entry(header, newContent, next));
+
+      // Must consume the data
+      stream.resume();
+    } else {
+      try {
+        // @ts-expect-error - this is the correct arguments
+        const fileContent = await stream.reduce(
+          newContent,
+          (acc: string, chunk: Buffer) => {
+            return acc + chunk.toString();
+          },
+          "",
+        );
+
+        // biome-ignore lint/style/noNonNullAssertion: it must exists
+        const replaced = newContent(fileContent!);
+
+        if (replaced === null) {
+          pack.entry(header, next);
+        } else {
+          pack.entry(header, replaced, next);
+        }
+      } catch (e) {
+        next(e);
+      }
+    }
+
     // replace the content
-    stream.on("end", () => pack.entry(header, newContent, next));
-    stream.resume();
   });
 
   return {
