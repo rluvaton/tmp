@@ -4,7 +4,7 @@ import { doesFileExist } from "../lib/fs-helpers.js";
 import {
   type ModuleCache,
   getModuleInfoCache,
-  loadModuleInfoCache,
+  loadModuleInfoCache, haveModuleInfoCache,
 } from "../npm-graph/module-cache/index.js";
 
 interface CacheData {
@@ -36,10 +36,20 @@ function buildCache(): CacheData {
   };
 }
 
+function haveCache() {
+  return haveModuleInfoCache();
+}
+
 export async function saveCache(cachedFilePath: string) {
+  if(!haveCache()) {
+    return;
+  }
   await fsPromises.writeFile(cachedFilePath, JSON.stringify(buildCache()));
 }
 
 export function saveCacheSync(cachedFilePath: string) {
+  if(!haveCache()) {
+    return;
+  }
   fs.writeFileSync(cachedFilePath, JSON.stringify(buildCache()));
 }

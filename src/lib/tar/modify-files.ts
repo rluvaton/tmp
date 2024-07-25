@@ -122,18 +122,13 @@ async function getUncompressedTgzSizeInBytes(
   const gunzip = zlib.createGunzip();
   const extract = tarStream.extract();
 
-  let f = false;
-
   extract.on("entry", (header, stream, next) => {
-    if (f) {
-      console.error("already finished");
-    }
     bytes += header.size || 0;
 
     next();
   });
 
   await pipeline(input, gunzip, extract);
-  f = true;
+
   return bytes;
 }

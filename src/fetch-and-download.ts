@@ -11,6 +11,9 @@ import {
   listenToNewPackages,
   removeNewPackageListener,
 } from "./npm-graph/needed-packages.js";
+import { loadCache, saveCache, saveCacheSync } from "./cache/index.js";
+import path from "node:path";
+import { ROOT_DIR } from "./root-dir.js";
 
 export interface FetchAndDownloadOptions {
   include: DependenciesType;
@@ -19,10 +22,54 @@ export interface FetchAndDownloadOptions {
   downloadConcurrency: number;
   outputFolder: string;
   packages: Record<string, string[]>;
-  signal?: AbortSignal;
+  alwaysSaveCache?: boolean;
 }
 
 export async function fetchAndDownload(options: FetchAndDownloadOptions) {
+  const outputFolder = path.join(ROOT_DIR, "output");
+  const cacheFilePath = path.join(outputFolder, "cache.json");
+
+  const abort = new AbortController();
+
+  await loadCache(cacheFilePath);
+
+  // On CTRL-C
+  process.on("SIGINT", () => {
+    abort.abort(new Error("Received SIGINT"));
+
+    console.log("Saving cache");
+    // Only in failure save cache
+    try {
+      saveCacheSync(cacheFilePath);
+      console.log("Cache saved successfully");
+    } catch (e) {
+      console.error("Failed to save cache", e);
+    }
+
+    process.exit(2 /* SIGINT */);
+  });
+
+  await fetchAndDownloadImpl({ ...options, signal: abort.signal }).catch(
+    async (e) => {
+      // Only in failure save cache
+      await saveCache(cacheFilePath).catch((cacheError) =>
+        console.error("Failed to save cache", cacheError),
+      );
+
+      throw e;
+    },
+  );
+
+  if (options.alwaysSaveCache) {
+    await saveCache(cacheFilePath);
+  }
+}
+
+async function fetchAndDownloadImpl(
+  options: FetchAndDownloadOptions & {
+    signal?: AbortSignal;
+  },
+) {
   const progressBar = new cliProgress.MultiBar(
     {},
     cliProgress.Presets.shades_grey,

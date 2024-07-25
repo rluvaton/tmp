@@ -18,9 +18,6 @@ import { ROOT_DIR } from "./root-dir.js";
 // );
 
 const outputFolder = path.join(ROOT_DIR, "output");
-const cacheFilePath = path.join(outputFolder, "cache.json");
-
-const abort = new AbortController();
 
 async function run() {
   // await downloadPackage(
@@ -34,8 +31,6 @@ async function run() {
   //   },
   //   "/Users/rluvaton/dev/open-source/rluvaton/bulk-npm-publish-2/output",
   // );
-
-  await loadCache(cacheFilePath);
 
   await fetchAndDownload({
     packages: {
@@ -53,15 +48,8 @@ async function run() {
       peerDependencies: true,
     },
     alsoFetchLatest: true,
-    signal: abort.signal,
-  }).catch(async (e) => {
-    // Only in failure save cache
-    await saveCache(cacheFilePath).catch((cacheError) =>
-      console.error("Failed to save cache", cacheError),
-    );
-
-    throw e;
-  });
+    alwaysSaveCache: true
+  })
 }
 
 run()
@@ -73,18 +61,3 @@ run()
     process.exit(1);
   });
 
-// On CTRL-C
-process.on("SIGINT", () => {
-  abort.abort(new Error("Received SIGINT"));
-
-  console.log("Saving cache");
-  // Only in failure save cache
-  try {
-    saveCacheSync(cacheFilePath);
-    console.log("Cache saved successfully");
-  } catch (e) {
-    console.error("Failed to save cache", e);
-  }
-
-  process.exit(2 /* SIGINT */);
-});

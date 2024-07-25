@@ -7,6 +7,8 @@ import {
 } from "../lib/npm/registry.js";
 import { parseFileNameFromPackage } from "../package-file-name.js";
 
+// TODO - add progress bar and concurrent upload
+
 export async function uploadPackage(filePath: string, options: NpmOptions) {
   const parsed = parseFileNameFromPackage(filePath);
 

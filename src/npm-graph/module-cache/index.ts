@@ -25,6 +25,11 @@ export function isModuleInCache(name: string): boolean {
   return cache.has(name);
 }
 
+export function haveModuleInfoCache(): boolean {
+    return cache.size > 0;
+
+}
+
 export function addNewModule(name: string, moduleInfo: npm.Packument): void {
   if (cache.has(name)) {
     return;
