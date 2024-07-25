@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import fsPromises from "node:fs/promises";
-import { Readable } from "node:stream";
+import { PassThrough, type TransformCallback, finished } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import zlib from "node:zlib";
 import tarStream from "tar-stream";
@@ -13,6 +13,8 @@ interface FilesToChange {
   [filePathInTar: string]: string | ((content: string) => string | null);
 }
 
+const LIMIT_TO_USE_IN_MEMORY = ONE_MB * 10;
+
 export async function modifyFilesInTar(
   tarFile: string,
   filesToChange: FilesToChange,
@@ -21,7 +23,7 @@ export async function modifyFilesInTar(
 
   const uncompressedSizeInBytes = await getUncompressedTgzSizeInBytes(tarFile);
 
-  const useInMemory = uncompressedSizeInBytes <= ONE_MB * 10;
+  const useInMemory = uncompressedSizeInBytes <= LIMIT_TO_USE_IN_MEMORY;
 
   const { input: inputPipeline, output: outputPipeline } = getPipelines({
     inputFile: tarFile,
@@ -50,7 +52,10 @@ function getPipelines({
 }) {
   const gunzip = zlib.createGunzip();
   const gzip = zlib.createGzip();
-  const pack = tarStream.pack();
+  const pack = tarStream.pack({
+    // So we won't have back pressure issues when keeping the entire tar in memory
+    highWaterMark: LIMIT_TO_USE_IN_MEMORY * 10,
+  });
   const extract = tarStream.extract();
 
   extract.on("finish", () => {
@@ -64,26 +69,40 @@ function getPipelines({
     // If missing override, keep the original content
     if (filesToChange[header.name] == null) {
       stream.pipe(pack.entry(header, next));
+
       return;
     }
 
     // New content
     if (typeof newContent === "string") {
-      stream.on("end", () => pack.entry(header, newContent, next));
+      let called = false;
 
-      // Must consume the data
+      // Wait for both stream and pack to finish
+      pack.entry({ ...header, size: newContent.length }, newContent, () => {
+        if (!called) {
+          called = true;
+          return;
+        }
+
+        next();
+      });
+
+      // To call next on stream end, even though pipe should do that, it don't
+      stream.on("end", () => {
+        if (!called) {
+          called = true;
+          return;
+        }
+
+        next();
+      });
+
+      // Drain the stream
       stream.resume();
     } else {
-      try {
-        // Need to do this as for some reason the stream does not have the Readable functionality
-        const readable = Readable.from(stream);
-        const fileContent = await readable.reduce(
-          (acc: string, chunk: Buffer) => {
-            return acc + chunk.toString();
-          },
-          "",
-        );
+      let fileContent = "";
 
+      stream.on("end", () => {
         // biome-ignore lint/style/noNonNullAssertion: it must exists
         const replaced = newContent(fileContent!);
 
@@ -92,12 +111,14 @@ function getPipelines({
         } else {
           pack.entry(header, replaced, next);
         }
-      } catch (e) {
-        next(e);
-      }
-    }
+      });
 
-    // replace the content
+      stream.on("data", (chunk: Buffer) => {
+        fileContent += chunk.toString();
+      });
+
+      stream.resume();
+    }
   });
 
   return {
@@ -125,7 +146,9 @@ async function getUncompressedTgzSizeInBytes(
   extract.on("entry", (header, stream, next) => {
     bytes += header.size || 0;
 
-    next();
+    stream.on("end", next);
+
+    stream.resume(); // just auto drain the stream
   });
 
   await pipeline(input, gunzip, extract);

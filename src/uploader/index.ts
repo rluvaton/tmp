@@ -1,3 +1,4 @@
+import { glob } from "glob";
 import {
   type NpmOptions,
   isPackagePublished,
@@ -6,10 +7,24 @@ import {
   publishPackage,
 } from "../lib/npm/registry.js";
 import { parseFileNameFromPackage } from "../package-file-name.js";
+import type { UploadStat } from "../upload-packages.js";
 
 // TODO - add progress bar and concurrent upload
 
-export async function uploadPackage(filePath: string, options: NpmOptions) {
+const EMPTY_UPLOAD_STATS: UploadStat = {
+  uploaded: 0,
+  markedExistingPackageAsLatest: 0,
+  processed: 0,
+  skippedAsAlreadyLatest: 0,
+  total: 0,
+};
+
+export async function uploadPackage(
+  filePath: string,
+  options: NpmOptions,
+  stats: UploadStat = EMPTY_UPLOAD_STATS,
+) {
+  stats.processed++;
   const parsed = parseFileNameFromPackage(filePath);
 
   const isPublished = await isPackagePublished({
@@ -26,7 +41,7 @@ export async function uploadPackage(filePath: string, options: NpmOptions) {
     });
 
     if (isLatest) {
-      console.log("Package is already published and is the latest version");
+      stats.skippedAsAlreadyLatest++;
       return;
     }
 
@@ -37,6 +52,8 @@ export async function uploadPackage(filePath: string, options: NpmOptions) {
       options,
     });
 
+    stats.markedExistingPackageAsLatest++;
+
     return;
   }
 
@@ -46,5 +63,15 @@ export async function uploadPackage(filePath: string, options: NpmOptions) {
     tarFilePath: filePath,
     setLatest: parsed.isLatest,
     options,
+  });
+
+  stats.uploaded++;
+}
+
+export async function getAllPackagesPath(dir: string): Promise<string[]> {
+  return glob("**/*.tgz", {
+    cwd: dir,
+    nodir: true,
+    absolute: true,
   });
 }

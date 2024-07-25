@@ -1,7 +1,11 @@
 import path from "node:path";
+import cliProgress, { MultiBar } from "cli-progress";
 import { loadCache, saveCache, saveCacheSync } from "./cache/index.js";
+import { downloadPackage } from "./downloader/index.js";
 import { fetchAndDownload } from "./fetch-and-download.js";
 import { ROOT_DIR } from "./root-dir.js";
+import { uploadPackages } from "./upload-packages.js";
+import { uploadPackage } from "./uploader/index.js";
 
 //
 // await downloadPackage(
@@ -20,21 +24,39 @@ import { ROOT_DIR } from "./root-dir.js";
 const outputFolder = path.join(ROOT_DIR, "output");
 
 async function run() {
+  const progressBar = new cliProgress.MultiBar(
+    {},
+    cliProgress.Presets.shades_grey,
+  );
+  //
   // await downloadPackage(
   //   {
-  //     name: "@sigstore/bundle@2.3.2",
-  //     version: "2.3.2",
+  //     name: "@sigstore/tuf@2.3.4",
+  //     version: "2.3.4",
   //     isLatest: true,
-  //     url: "https://registry.npmjs.org/@sigstore/bundle/-/bundle-2.3.2.tgz",
+  //     url: "https://registry.npmjs.org/@sigstore/tuf/-/tuf-2.3.4.tgz",
   //     shouldRemoveProvenance: true,
-  //     shouldRemoveCustomRegistry: true,
+  //     shouldRemoveCustomRegistry: false,
   //   },
-  //   "/Users/rluvaton/dev/open-source/rluvaton/bulk-npm-publish-2/output",
+  //   outputFolder,
+  //   progressBar,
   // );
+  //
+  // progressBar.stop();
+
+  // TODO - fix provenance for sigstore@2.3.1
+
+  // await uploadPackages({
+  //   concurrency: 10,
+  //   registry: "http://localhost:4873",
+  //   outputFolder,
+  //   removeFilesAfterUpload: true,
+  // });
 
   await fetchAndDownload({
     packages: {
-      tap: ["^14.2.4"],
+      // tap: ["^14.2.4"],
+      sigstore: ["2.3.1"],
       // "@sigstore/bundle": ["2.3.2"],
     },
     fetchConcurrency: 10,

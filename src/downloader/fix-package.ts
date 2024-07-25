@@ -17,10 +17,10 @@ export async function fixPackage(
   }
   const prettyPath = path.basename(packagePath);
 
-  downloadBar?.setTotal(4);
   downloadBar?.update(2, {
     step: "Fetch Package JSON",
   });
+  downloadBar?.setTotal(4);
 
   let packageJsonPath: string;
   try {

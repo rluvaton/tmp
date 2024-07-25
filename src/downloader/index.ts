@@ -34,6 +34,8 @@ export async function downloadPackage(
     },
   );
 
+  downloadProgressBar?.start(3, 0);
+
   if (!(await doesFileExist(fullPath))) {
     downloadProgressBar?.update({
       step: "Fetching",
@@ -41,7 +43,7 @@ export async function downloadPackage(
 
     await downloadPackageUrl(packageDetails, fullPath, downloadProgressBar);
 
-    downloadProgressBar?.setTotal(3);
+    downloadProgressBar?.setTotal(4);
     downloadProgressBar?.update(2, {
       step: "Downloaded",
     });
@@ -54,7 +56,7 @@ export async function downloadPackage(
     downloadProgressBar?.update(2, {
       step: "Fixing",
     });
-    await fixPackage(packageDetails, fullPath, downloadProgressBar);
+    await fixPackage(packageDetails, fullPath);
   }
 
   downloadProgressBar?.stop();

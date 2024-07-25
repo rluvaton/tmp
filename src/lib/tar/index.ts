@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { Readable } from "node:stream";
+import { finished } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import zlib from "node:zlib";
 import { minimatch } from "minimatch";
@@ -19,17 +20,27 @@ export async function getFileContentFromTar(
 
   const filesBuffers: Record<string, Buffer> = {};
 
-  extract.on("entry", async (header, stream, next) => {
+  extract.on("entry", (header, stream, next) => {
     if (!minimatch(header.name, filePathGlob)) {
-      next();
+      stream.on("end", next);
+      stream.resume();
       return;
     }
+
+    const chunks: Buffer[] = [];
+    stream.on("end", () => {
+      filesBuffers[header.name] = Buffer.concat(chunks);
+      next();
+    });
+    stream.on("data", (chunk) => {
+      chunks.push(chunk);
+    });
     // Need to do this as for some reason the stream does not have the Readable functionality
-    const readable = Readable.from(stream);
+    // const readable = Readable.from(stream);
+    //
+    // filesBuffers[header.name] = Buffer.concat(await readable.toArray());
 
-    filesBuffers[header.name] = Buffer.concat(await readable.toArray());
-
-    next();
+    // next();
   });
 
   await pipeline(
@@ -50,13 +61,11 @@ export async function getListOfFilesFromTar(
   const extract = tarStream.extract();
 
   extract.on("entry", async (header, stream, next) => {
-    if (
-      !matchingGlobPatterns ||
-      !minimatch(header.name, matchingGlobPatterns)
-    ) {
+    if (!matchingGlobPatterns || minimatch(header.name, matchingGlobPatterns)) {
       fileList.push(header.name);
     }
-    next();
+    finished(stream, next);
+    stream.on("data", () => undefined);
   });
 
   await pipeline(
