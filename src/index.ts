@@ -1,11 +1,11 @@
 import path from "node:path";
-import cliProgress, { MultiBar } from "cli-progress";
-import { loadCache, saveCache, saveCacheSync } from "./cache/index.js";
-import { downloadPackage } from "./downloader/index.js";
-import { fetchAndDownload } from "./fetch-and-download.js";
+import {
+  type RequiredPackages,
+  fetchAndDownload,
+} from "./fetch-and-download.js";
+import { readJsonFile } from "./lib/fs-helpers.js";
+import { readFromLocal } from "./package-finder/finder.js";
 import { ROOT_DIR } from "./root-dir.js";
-import { uploadPackages } from "./upload-packages.js";
-import { uploadPackage } from "./uploader/index.js";
 
 //
 // await downloadPackage(
@@ -24,10 +24,10 @@ import { uploadPackage } from "./uploader/index.js";
 const outputFolder = path.join(ROOT_DIR, "output");
 
 async function run() {
-  const progressBar = new cliProgress.MultiBar(
-    {},
-    cliProgress.Presets.shades_grey,
-  );
+  // const progressBar = new cliProgress.MultiBar(
+  //   {},
+  //   cliProgress.Presets.shades_grey,
+  // );
   //
   // await downloadPackage(
   //   {
@@ -53,24 +53,35 @@ async function run() {
   //   removeFilesAfterUpload: true,
   // });
 
+  const deps = await readFromLocal(ROOT_DIR);
+
+  const requested = await readJsonFile<RequiredPackages>(
+    path.join(ROOT_DIR, "requested.json"),
+  );
+  //
+  // console.log(deps);
+
   await fetchAndDownload({
-    packages: {
+    packages: requested || {
+      typeorm: ["latest"],
+      // "@nestjs/cli": ["latest"],
+      // fastify: ["latest"],
       // tap: ["^14.2.4"],
-      sigstore: ["2.3.1"],
+      // ...deps,
+      // sigstore: ["2.3.1"],
       // "@sigstore/bundle": ["2.3.2"],
     },
     fetchConcurrency: 10,
     downloadConcurrency: 10,
     outputFolder,
     include: {
-      bundledDependencies: false,
-      bundleDependencies: false,
       devDependencies: false,
       dependencies: true,
       peerDependencies: true,
     },
     alsoFetchLatest: true,
     alwaysSaveCache: true,
+    registryDataFilePath: "registry-data.json",
   });
 }
 

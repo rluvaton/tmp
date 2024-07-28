@@ -1,6 +1,6 @@
 import fsPromises from "node:fs/promises";
 import path from "node:path";
-import cliProgress from "cli-progress";
+import cliProgress, { type SingleBar } from "cli-progress";
 import fastq, { type queueAsPromised } from "fastq";
 import { loadCache, saveCache, saveCacheSync } from "./cache/index.js";
 import { downloadPackage } from "./downloader/index.js";
@@ -13,7 +13,23 @@ import {
   listenToNewPackages,
   removeNewPackageListener,
 } from "./npm-graph/needed-packages.js";
+import {
+  doesRegistryAlreadyHave,
+  loadRegistry,
+} from "./remote-registry-cache.js";
 import { ROOT_DIR } from "./root-dir.js";
+
+export interface RequiredPackages {
+  // Package name to versions
+  [packageName: string]: string[];
+}
+
+export interface FetchAndDownloadMetadataProgressPayload {
+  pendingDownloads: number;
+  downloaded: number;
+  skippedAlreadyDownloaded: number;
+  alreadyInRegistry: number;
+}
 
 export interface FetchAndDownloadOptions {
   include: DependenciesType;
@@ -21,8 +37,9 @@ export interface FetchAndDownloadOptions {
   alsoFetchLatest: boolean;
   downloadConcurrency: number;
   outputFolder: string;
-  packages: Record<string, string[]>;
+  packages: RequiredPackages;
   alwaysSaveCache?: boolean;
+  registryDataFilePath?: string;
 }
 
 export async function fetchAndDownload(options: FetchAndDownloadOptions) {
@@ -75,17 +92,71 @@ async function fetchAndDownloadImpl(
     cliProgress.Presets.shades_grey,
   );
 
+  progressBar.update();
+
   if (!(await doesDirectoryExists(options.outputFolder))) {
     await fsPromises.mkdir(options.outputFolder, { recursive: false });
   }
 
+  let currentMetadata: FetchAndDownloadMetadataProgressPayload = {
+    pendingDownloads: 0,
+    downloaded: 0,
+    skippedAlreadyDownloaded: 0,
+    alreadyInRegistry: 0,
+  };
+
+  const metadataProgressBar: SingleBar = progressBar.create(
+    Number.POSITIVE_INFINITY,
+    0,
+    {
+      ...currentMetadata,
+    },
+    {
+      clearOnComplete: false,
+      hideCursor: true,
+      format: [
+        "Pending downloads {pendingDownloads}",
+        "Downloaded {downloaded}",
+        "Already downloaded {skippedAlreadyDownloaded}",
+        options.registryDataFilePath &&
+          "Versions already in registry {alreadyInRegistry}",
+      ]
+        .filter(Boolean)
+        .join(" | "),
+    },
+  );
+
+  metadataProgressBar.start(Number.POSITIVE_INFINITY, 0, {
+    ...currentMetadata,
+  });
+
+  if (options.registryDataFilePath) {
+    await loadRegistry(options.registryDataFilePath);
+  }
+
   const downloadQueue: queueAsPromised<NeededPackage> = fastq.promise(
     (neededPackage) =>
-      downloadPackage(neededPackage, options.outputFolder, progressBar),
+      downloadPackage({
+        folder: options.outputFolder,
+        packageDetails: neededPackage,
+        allDownloadsProgressBars: progressBar,
+        metadataProgressBar: metadataProgressBar,
+      }),
     options.downloadConcurrency,
   );
 
-  listenToNewPackages(downloadQueue.push.bind(downloadQueue));
+  listenToNewPackages((neededPackage) => {
+    const currentMetadata = (
+      metadataProgressBar as unknown as {
+        payload: FetchAndDownloadMetadataProgressPayload;
+      }
+    ).payload;
+    currentMetadata.pendingDownloads++;
+    metadataProgressBar.update({
+      ...currentMetadata,
+    });
+    downloadQueue.push(neededPackage);
+  });
 
   const cache = new PackagesGraph({
     concurrency: options.fetchConcurrency,
@@ -144,12 +215,26 @@ async function fetchAndDownloadImpl(
   await downloadQueue.drain();
   await downloadQueue.drained();
 
+  currentMetadata = (
+    metadataProgressBar as unknown as { payload: typeof currentMetadata }
+  ).payload;
+
   fetchProgressBar.stop();
+  metadataProgressBar.stop();
   progressBar.stop();
 
   console.log("Finished downloading all packages");
   console.log(`Requested ${needed.length} packages and versions`);
+
+  // TODO - Print seperetly the number of already downloaded packages
+  // TODO - Do not print those in the same list
   console.log(`Downloaded ${getNumberOfPackagesToDownload()}`);
+
+  if (options.registryDataFilePath) {
+    console.log(
+      `Skipped ${currentMetadata.alreadyInRegistry} specific versions that already exists in registry`,
+    );
+  }
 
   console.log("All done");
 }

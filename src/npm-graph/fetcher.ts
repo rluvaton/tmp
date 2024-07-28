@@ -1,4 +1,8 @@
 import type * as npm from "@npm/types";
+import { PackumentVersion } from "@npm/types";
+import createFetchRetry from "fetch-retry";
+
+const fetchWithRetry = createFetchRetry(fetch);
 
 export async function fetchPackage(
   packageName: string,
@@ -9,10 +13,19 @@ export async function fetchPackage(
 
   // This was faster from using undici request somehow
 
-  // TODO - on timeout, retry
-  const response = await fetch(`https://registry.npmjs.org/${packageName}`, {
-    method: "GET",
-    signal,
+  const response = await fetchWithRetry(
+    `https://registry.npmjs.org/${packageName}`,
+    {
+      method: "GET",
+      signal,
+
+      retries: 3,
+      retryDelay: 1000,
+    },
+  ).catch((e) => {
+    console.error("Failed to fetch package", packageName, e);
+
+    throw e;
   });
 
   if (response.status >= 400) {
@@ -23,4 +36,39 @@ export async function fetchPackage(
   }
 
   return (await response.json()) as npm.Packument;
+}
+
+export async function fetchSpecificVersionPackage(
+  packageName: string,
+  version: string,
+  signal?: AbortSignal,
+): Promise<npm.PackumentVersion> {
+  // Package info is what being returned from for latest version
+  // https://registry.npmjs.org/@babel/generator/latest
+
+  // This was faster from using undici request somehow
+
+  const response = await fetchWithRetry(
+    `https://registry.npmjs.org/${packageName}/${version}`,
+    {
+      method: "GET",
+      signal,
+
+      retries: 3,
+      retryDelay: 1000,
+    },
+  ).catch((e) => {
+    console.error("Failed to fetch package", packageName, e);
+
+    throw e;
+  });
+
+  if (response.status >= 400) {
+    const responseBody = await response.text();
+
+    console.error("Failed to fetch package", packageName, responseBody);
+    throw new Error(`Failed to fetch ${packageName}`);
+  }
+
+  return (await response.json()) as npm.PackumentVersion;
 }

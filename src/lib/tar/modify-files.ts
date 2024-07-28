@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import fsPromises from "node:fs/promises";
-import { PassThrough, type TransformCallback, finished } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import zlib from "node:zlib";
 import tarStream from "tar-stream";

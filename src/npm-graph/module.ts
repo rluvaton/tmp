@@ -11,8 +11,6 @@ export interface DependenciesType {
   dependencies?: boolean;
   devDependencies?: boolean;
   peerDependencies?: boolean;
-  bundleDependencies?: boolean;
-  bundledDependencies?: boolean;
 }
 
 export function getBasedOnDistTag(
@@ -113,32 +111,12 @@ export function getPackageDependencies(
 export function getSpecificPackageDependencies(
   specificPackageVersion: LightModuleVersionInfo,
   {
-    bundleDependencies = true,
-    bundledDependencies = true,
     dependencies = true,
     devDependencies = true,
     peerDependencies = true,
   }: DependenciesType = {},
 ): npm.Dependencies | undefined {
   const deps: npm.Dependencies = {};
-
-  if (bundleDependencies) {
-    let bundleDependenciesObj = specificPackageVersion.bundleDependencies;
-    if (Array.isArray(specificPackageVersion.bundleDependencies)) {
-      bundleDependenciesObj = specificPackageVersion.bundleDependencies.reduce(
-        (all, item) => {
-          all[item] = "*";
-          return all;
-        },
-        {},
-      );
-    }
-    Object.assign(deps, bundleDependenciesObj || {});
-  }
-
-  if (bundledDependencies) {
-    Object.assign(deps, specificPackageVersion.bundledDependencies || {});
-  }
 
   if (dependencies) {
     Object.assign(deps, specificPackageVersion.dependencies || {});
