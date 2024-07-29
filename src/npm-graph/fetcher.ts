@@ -17,7 +17,8 @@ export async function fetchPackage(
     `https://registry.npmjs.org/${packageName}`,
     {
       method: "GET",
-      signal,
+      // For some reason there is a memory leak if using the same signal, so we just create a new one
+      signal: signal ? AbortSignal.any([signal]) : signal,
 
       retries: 3,
       retryDelay: 1000,
