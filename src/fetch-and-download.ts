@@ -10,6 +10,7 @@ import {
   kTotal,
   kValue,
 } from "./multi-progress-bar/predefined-variables.js";
+import { doesPackageExist } from "./npm-graph/fetcher.js";
 import { PackagesGraph } from "./npm-graph/index.js";
 import type { DependenciesType } from "./npm-graph/module.js";
 import {
@@ -42,6 +43,9 @@ export interface FetchAndDownloadOptions {
   packages: RequiredPackages;
   alwaysSaveCache?: boolean;
   registryDataFilePath?: string;
+
+  // Will only ignore missing packages that in the `packages` option, should support even in deps
+  ignoreMissing?: boolean;
 }
 
 export async function fetchAndDownload(options: FetchAndDownloadOptions) {
@@ -66,6 +70,21 @@ export async function fetchAndDownload(options: FetchAndDownloadOptions) {
     }
 
     process.exit(2 /* SIGINT */);
+  });
+
+  // On CTRL-C
+  process.on("unhandledRejection", (reason) => {
+    console.error("unhandledRejection", reason);
+
+    // Only in failure save cache
+    try {
+      saveCacheSync(cacheFilePath);
+      console.log("Cache saved successfully");
+    } catch (e) {
+      console.error("Failed to save cache", e);
+    }
+
+    process.exit(1 /* SIGINT */);
   });
 
   await fetchAndDownloadImpl({ ...options, signal: abort.signal }).catch(
@@ -207,6 +226,17 @@ async function fetchAndDownloadImpl(
   });
 
   for (const [packageName, version] of needed) {
+    if (
+      options.ignoreMissing &&
+      !(await doesPackageExist(
+        packageName,
+
+        // TODO - fix this, there seem to be a memory leak in the fetch and abort listener
+        options.signal ? AbortSignal.any([options.signal]) : undefined,
+      ))
+    ) {
+      continue;
+    }
     await cache.addNewPackage(packageName, version);
   }
 

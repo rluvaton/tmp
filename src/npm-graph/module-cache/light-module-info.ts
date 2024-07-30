@@ -14,7 +14,7 @@ export interface LightModuleVersionInfo {
 }
 
 export interface LightModuleInfo {
-  "dist-tags": npm.Packument["dist-tags"];
+  "dist-tags"?: npm.Packument["dist-tags"];
   versions: {
     [version: string]: LightModuleVersionInfo;
   };
@@ -24,7 +24,7 @@ export function convertToLightModuleInfo(info: npm.Packument): LightModuleInfo {
   return {
     "dist-tags": info["dist-tags"],
     versions: Object.fromEntries(
-      Object.entries(info.versions).map(([version, versionInfo]) => [
+      Object.entries(info.versions || {}).map(([version, versionInfo]) => [
         version,
         {
           version,

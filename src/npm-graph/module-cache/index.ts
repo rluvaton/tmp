@@ -92,7 +92,6 @@ export async function fetchModuleInfoToCache(
   }
 
   // TODO - add some progress bar for overall packages download
-  // console.log(`${prefix} FETCHING`);
   const fetchPackagePromise = fetchPackage(packageName, signal).then(
     (packageInfo) => {
       const lightMode = convertToLightModuleInfo(packageInfo);
