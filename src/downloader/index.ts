@@ -1,7 +1,14 @@
 import path from "node:path";
-import type { MultiBar, SingleBar } from "cli-progress";
 import type { FetchAndDownloadMetadataProgressPayload } from "../fetch-and-download.js";
 import { doesFileExist } from "../lib/fs-helpers.js";
+import { createNumberFormatter } from "../multi-progress-bar/formatters.js";
+import type { MultiProgressBar } from "../multi-progress-bar/multi-progress-bar.js";
+import {
+  kProgressBar,
+  kTotal,
+  kValue,
+} from "../multi-progress-bar/predefined-variables.js";
+import type { SingleProgressBar } from "../multi-progress-bar/single-bar.js";
 import type { NeededPackage } from "../npm-graph/needed-packages.js";
 import { createFileNameFromPackage } from "../package-file-name.js";
 import { doesRegistryAlreadyHave } from "../remote-registry-cache.js";
@@ -11,8 +18,8 @@ import { fixPackage } from "./fix-package.js";
 export interface DownloadPackageOptions {
   packageDetails: NeededPackage;
   folder: string;
-  allDownloadsProgressBars?: MultiBar;
-  metadataProgressBar?: SingleBar;
+  allDownloadsProgressBars?: MultiProgressBar;
+  metadataProgressBar?: SingleProgressBar<FetchAndDownloadMetadataProgressPayload>;
 }
 
 export async function downloadPackage({
@@ -21,49 +28,55 @@ export async function downloadPackage({
   allDownloadsProgressBars,
   metadataProgressBar,
 }: DownloadPackageOptions) {
-  const currentMetadata = (
-    metadataProgressBar as unknown as {
-      payload: FetchAndDownloadMetadataProgressPayload;
-    }
-  ).payload;
+  const currentMetadata = metadataProgressBar?.getPayload();
 
-  currentMetadata.pendingDownloads--;
-  metadataProgressBar?.update({
-    ...currentMetadata,
-  });
-
-  if (doesRegistryAlreadyHave(packageDetails)) {
-    currentMetadata.alreadyInRegistry++;
-    metadataProgressBar?.update({
+  if (currentMetadata) {
+    currentMetadata.pendingDownloads--;
+    // biome-ignore lint/style/noNonNullAssertion: <explanation>
+    metadataProgressBar!.update({
       ...currentMetadata,
     });
+  }
+
+  if (doesRegistryAlreadyHave(packageDetails)) {
+    if (currentMetadata) {
+      currentMetadata.alreadyInRegistry++;
+      // biome-ignore lint/style/noNonNullAssertion: <explanation>
+      metadataProgressBar!.update({
+        ...currentMetadata,
+      });
+    }
     return;
   }
 
   const fileName = createFileNameFromPackage(packageDetails);
   const fullPath = path.join(folder, fileName);
 
-  const downloadProgressBar = allDownloadsProgressBars?.create(
-    3,
-    0,
-    {},
-    {
-      clearOnComplete: false,
-      stopOnComplete: false,
-      hideCursor: true,
-      format: `{step} | {bar} | ${packageDetails.name}@${packageDetails.version} | {value}/{total}`,
-
-      formatValue: (value, options, type) => {
-        // noinspection SuspiciousTypeOfGuard
-        if (typeof value === "number") {
-          return value % 1 === 0 ? value.toString() : value.toFixed(2);
-        }
-        return value;
+  const downloadProgressBar = allDownloadsProgressBars?.add({
+    total: 3,
+    value: 0,
+    payload: {
+      step: "Init",
+    } as object,
+    template: [
+      {
+        key: "step",
       },
+      " | ",
+      kProgressBar,
+      " | ",
+      `${packageDetails.name}@${packageDetails.version}`,
+      " | ",
+      kValue,
+      "/",
+      kTotal,
+    ],
+    formatters: {
+      [kValue]: createNumberFormatter({
+        maxFractionDigits: 2,
+      }),
     },
-  );
-
-  downloadProgressBar?.start(3, 0);
+  });
 
   if (!(await doesFileExist(fullPath))) {
     downloadProgressBar?.update({
@@ -73,25 +86,33 @@ export async function downloadPackage({
     await downloadPackageUrl(packageDetails, fullPath, downloadProgressBar);
 
     downloadProgressBar?.setTotal(4);
-    downloadProgressBar?.update(2, {
+    downloadProgressBar?.setValue(2);
+    downloadProgressBar?.update({
       step: "Downloaded",
     });
-    currentMetadata.downloaded++;
-    metadataProgressBar?.update({
-      ...currentMetadata,
-    });
+    if (currentMetadata) {
+      currentMetadata.downloaded++;
+      // biome-ignore lint/style/noNonNullAssertion: <explanation>
+      metadataProgressBar!.update({
+        ...currentMetadata,
+      });
+    }
   } else {
-    currentMetadata.skippedAlreadyDownloaded++;
-    metadataProgressBar?.update({
-      ...currentMetadata,
-    });
+    if (currentMetadata) {
+      currentMetadata.skippedAlreadyDownloaded++;
+      // biome-ignore lint/style/noNonNullAssertion: <explanation>
+      metadataProgressBar!.update({
+        ...currentMetadata,
+      });
+    }
   }
 
   if (
     packageDetails.shouldRemoveCustomRegistry ||
     packageDetails.shouldRemoveProvenance
   ) {
-    downloadProgressBar?.update(2, {
+    downloadProgressBar?.setValue(2);
+    downloadProgressBar?.update({
       step: "Fixing",
     });
     await fixPackage(packageDetails, fullPath);

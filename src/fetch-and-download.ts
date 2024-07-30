@@ -1,10 +1,15 @@
 import fsPromises from "node:fs/promises";
 import path from "node:path";
-import cliProgress, { type SingleBar } from "cli-progress";
 import fastq, { type queueAsPromised } from "fastq";
 import { loadCache, saveCache, saveCacheSync } from "./cache/index.js";
 import { downloadPackage } from "./downloader/index.js";
 import { doesDirectoryExists } from "./lib/fs-helpers.js";
+import { MultiProgressBar } from "./multi-progress-bar/multi-progress-bar.js";
+import {
+  kProgressBar,
+  kTotal,
+  kValue,
+} from "./multi-progress-bar/predefined-variables.js";
 import { PackagesGraph } from "./npm-graph/index.js";
 import type { DependenciesType } from "./npm-graph/module.js";
 import {
@@ -13,10 +18,7 @@ import {
   listenToNewPackages,
   removeNewPackageListener,
 } from "./npm-graph/needed-packages.js";
-import {
-  doesRegistryAlreadyHave,
-  loadRegistry,
-} from "./remote-registry-cache.js";
+import { loadRegistry } from "./remote-registry-cache.js";
 import { ROOT_DIR } from "./root-dir.js";
 
 export interface RequiredPackages {
@@ -87,12 +89,7 @@ async function fetchAndDownloadImpl(
     signal?: AbortSignal;
   },
 ) {
-  const progressBar = new cliProgress.MultiBar(
-    {},
-    cliProgress.Presets.shades_grey,
-  );
-
-  progressBar.update();
+  const progressBar = new MultiProgressBar();
 
   if (!(await doesDirectoryExists(options.outputFolder))) {
     await fsPromises.mkdir(options.outputFolder, { recursive: false });
@@ -105,30 +102,25 @@ async function fetchAndDownloadImpl(
     alreadyInRegistry: 0,
   };
 
-  const metadataProgressBar: SingleBar = progressBar.create(
-    Number.POSITIVE_INFINITY,
-    0,
-    {
-      ...currentMetadata,
-    },
-    {
-      clearOnComplete: false,
-      hideCursor: true,
-      format: [
-        "Pending downloads {pendingDownloads}",
-        "Downloaded {downloaded}",
-        "Already downloaded {skippedAlreadyDownloaded}",
-        options.registryDataFilePath &&
-          "Versions already in registry {alreadyInRegistry}",
-      ]
-        .filter(Boolean)
-        .join(" | "),
-    },
-  );
+  const metadataProgressBar =
+    progressBar.add<FetchAndDownloadMetadataProgressPayload>({
+      total: Number.POSITIVE_INFINITY,
+      value: 0,
+      payload: currentMetadata,
+      template: [
+        "Pending downloads ",
+        { key: "pendingDownloads" },
+        " Downloaded ",
+        { key: "downloaded" },
+        " Already downloaded ",
+        { key: "skippedAlreadyDownloaded" },
 
-  metadataProgressBar.start(Number.POSITIVE_INFINITY, 0, {
-    ...currentMetadata,
-  });
+        !!options.registryDataFilePath && " Versions already in registry ",
+        !!options.registryDataFilePath && {
+          key: "alreadyInRegistry",
+        },
+      ],
+    });
 
   if (options.registryDataFilePath) {
     await loadRegistry(options.registryDataFilePath);
@@ -146,15 +138,14 @@ async function fetchAndDownloadImpl(
   );
 
   listenToNewPackages((neededPackage) => {
-    const currentMetadata = (
-      metadataProgressBar as unknown as {
-        payload: FetchAndDownloadMetadataProgressPayload;
-      }
-    ).payload;
-    currentMetadata.pendingDownloads++;
-    metadataProgressBar.update({
-      ...currentMetadata,
-    });
+    const currentMetadata = metadataProgressBar.getPayload();
+
+    if (currentMetadata) {
+      currentMetadata.pendingDownloads++;
+      metadataProgressBar.update({
+        ...currentMetadata,
+      });
+    }
     downloadQueue.push(neededPackage);
   });
 
@@ -171,21 +162,31 @@ async function fetchAndDownloadImpl(
     versions.map((version) => [packageName, version] as const),
   );
 
-  const fetchProgressBar = progressBar.create(
-    needed.length,
-    0,
-    {},
-    {
-      clearOnComplete: false,
-      hideCursor: true,
-      format: "Scanning {value}/{total} | {bar} | {package}@{range}",
-    },
-  );
+  const fetchProgressBar = progressBar.add({
+    total: needed.length,
+    value: 0,
+    template: [
+      "Scanning ",
+      kValue,
+      "/",
 
-  fetchProgressBar.start(needed.length, 0);
+      kTotal,
+      " | ",
+      kProgressBar,
+      " | ",
+      {
+        key: "package",
+      },
+      "@",
+      {
+        key: "range",
+      },
+    ],
+  });
 
   cache.on("newPackage", (packageName, versionRange) => {
-    fetchProgressBar.increment({
+    fetchProgressBar.increment();
+    fetchProgressBar.update({
       package: packageName,
       range: versionRange,
     });
@@ -209,7 +210,7 @@ async function fetchAndDownloadImpl(
     await cache.addNewPackage(packageName, version);
   }
 
-  fetchProgressBar.setTotal(fetchProgressBar.getProgress());
+  fetchProgressBar.setTotal(fetchProgressBar.getCurrent());
   fetchProgressBar.stop();
 
   await downloadQueue.drain();

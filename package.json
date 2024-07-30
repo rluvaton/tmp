@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "start:dev": "node --import ./load-ts.js src/index.ts",
     "start:fix": "node --import ./load-ts.js src/fix-latest.ts",
+    "start:progress-bar": "node --import ./load-ts.js src/multi-progress-bar/test-progress-bar.ts",
     "start": "node dist/index.js",
     "test": "node --import ./load-ts.js run-tests.ts"
   },
@@ -34,7 +35,6 @@
   },
   "dependencies": {
     "@npmcli/arborist": "^7.5.4",
-    "cli-progress": "^3.12.0",
     "execa": "^9.3.0",
     "fastq": "^1.17.1",
     "fetch-retry": "^6.0.0",

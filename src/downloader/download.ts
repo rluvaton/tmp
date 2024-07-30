@@ -1,14 +1,14 @@
 import * as fs from "node:fs";
 import fsPromises from "node:fs/promises";
-import type { SingleBar } from "cli-progress";
 import { Client } from "undici";
 import { getContentSizeFromHeaders } from "../lib/undici-helpers.js";
+import type { SingleProgressBar } from "../multi-progress-bar/single-bar.js";
 import type { NeededPackage } from "../npm-graph/needed-packages.js";
 
 export async function downloadPackageUrl(
   packageDetails: NeededPackage,
   outputPath: string,
-  progressBar?: SingleBar,
+  progressBar?: SingleProgressBar,
 ): Promise<void> {
   const url = new URL(packageDetails.url);
 
