@@ -10,9 +10,9 @@
     "typecheck": "tsc --noEmit",
     "start:dev": "node --import ./load-ts.js src/index.ts",
     "start:fix": "node --import ./load-ts.js src/fix-latest.ts",
-    "start:progress-bar": "node --import ./load-ts.js src/multi-progress-bar/test-progress-bar.ts",
     "start": "node dist/index.js",
-    "test": "node --import ./load-ts.js run-tests.ts"
+    "test": "node --import ./load-ts.js run-tests.ts",
+    "test:progress-bar": "node --import ./load-ts.js test/test-progress-bar.ts"
   },
   "keywords": [],
   "author": "Raz Luvaton",
